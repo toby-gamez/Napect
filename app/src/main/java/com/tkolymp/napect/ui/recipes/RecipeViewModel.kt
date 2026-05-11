@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.repository.RecipeRepository
+import com.tkolymp.napect.data.ai.RecipeClassifier
+import com.tkolymp.napect.domain.model.Category
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
@@ -35,7 +37,8 @@ class RecipeViewModel(private val repo: RecipeRepository) : ViewModel() {
 
     fun createRecipe(recipe: Recipe, onComplete: (Long) -> Unit = {}) {
         viewModelScope.launch {
-            val id = repo.createRecipe(recipe)
+            val category = if (recipe.category == Category.UNKNOWN) RecipeClassifier.classify(recipe.title, recipe.ingredients.map { it.name }, recipe.steps.map { it.instruction }) else recipe.category
+            val id = repo.createRecipe(recipe.copy(category = category))
             onComplete(id)
         }
     }

@@ -1,0 +1,62 @@
+package com.tkolymp.napect.ui.recipes
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.tkolymp.napect.data.ai.RecipeClassifier
+import com.tkolymp.napect.data.network.ImportedRecipeData
+import com.tkolymp.napect.data.network.UrlImportService
+import com.tkolymp.napect.domain.model.Ingredient
+import com.tkolymp.napect.domain.model.Recipe
+import com.tkolymp.napect.domain.model.Step
+import com.tkolymp.napect.domain.repository.RecipeRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+sealed interface UrlImportState {
+    object Idle : UrlImportState
+    object Loading : UrlImportState
+    data class Success(val data: ImportedRecipeData) : UrlImportState
+    data class Error(val message: String) : UrlImportState
+    object Saved : UrlImportState
+}
+
+class UrlImportViewModel(
+    private val service: UrlImportService,
+    private val repo: RecipeRepository
+) : ViewModel() {
+    private val _state = MutableStateFlow<UrlImportState>(UrlImportState.Idle)
+    val state: StateFlow<UrlImportState> = _state.asStateFlow()
+
+    fun fetchUrl(url: String) {
+        viewModelScope.launch {
+            _state.value = UrlImportState.Loading
+            val res = service.importFromUrl(url)
+            if (res.isSuccess) {
+                _state.value = UrlImportState.Success(res.getOrThrow())
+            } else {
+                _state.value = UrlImportState.Error(res.exceptionOrNull()?.message ?: "Unknown error")
+            }
+        }
+    }
+
+    fun saveImported(data: ImportedRecipeData, onComplete: (Long) -> Unit = {}) {
+        viewModelScope.launch {
+            val ing = data.ingredients.mapIndexed { idx, s -> Ingredient(amount = 0.0, unit = null, name = s, sortOrder = idx) }
+            val steps = data.steps.mapIndexed { idx, s -> Step(stepNumber = idx + 1, instruction = s) }
+            val category = RecipeClassifier.classify(data.title, data.ingredients, data.steps)
+            val recipe = Recipe(
+                title = data.title,
+                summary = data.description,
+                ingredients = ing,
+                steps = steps,
+                category = category,
+                sourceUrl = data.sourceUrl
+            )
+            val id = repo.createRecipe(recipe)
+            _state.value = UrlImportState.Saved
+            onComplete(id)
+        }
+    }
+}

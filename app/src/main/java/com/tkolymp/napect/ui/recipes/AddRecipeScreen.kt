@@ -1,6 +1,13 @@
 package com.tkolymp.napect.ui.recipes
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,7 +18,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts.GetContent
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -21,6 +34,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 // keyboard input options removed for compatibility; rely on default keyboard
 import androidx.compose.ui.unit.dp
+import java.io.ByteArrayOutputStream
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.layout.height
 import com.tkolymp.napect.domain.model.Ingredient
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.model.Step
@@ -36,11 +52,37 @@ fun AddRecipeScreen(onSave: (Recipe) -> Unit, onCancel: () -> Unit, modifier: Mo
     val ingredients = remember { mutableStateListOf<IngredientInput>() }
     val steps = remember { mutableStateListOf<String>() }
 
+    // image bytes picked from gallery (optional)
+    val context = LocalContext.current
+    var photoBytes by remember { mutableStateOf<ByteArray?>(null) }
+
+    val pickLauncher = rememberLauncherForActivityResult(GetContent()) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.openInputStream(uri)?.use { ins ->
+                    val baos = ByteArrayOutputStream()
+                    ins.copyTo(baos)
+                    photoBytes = baos.toByteArray()
+                }
+            } catch (_: Exception) {
+            }
+        }
+    }
+
     // start with one empty row for convenience
     if (ingredients.isEmpty()) ingredients.add(IngredientInput())
     if (steps.isEmpty()) steps.add("")
 
-    Column(modifier = modifier.padding(16.dp)) {
+    Column(modifier = modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
+        // Photo picker
+        if (photoBytes != null) {
+            val bmp = BitmapFactory.decodeByteArray(photoBytes, 0, photoBytes!!.size)
+            Image(bitmap = bmp.asImageBitmap(), contentDescription = "Selected photo", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
+            Button(onClick = { photoBytes = null }, modifier = Modifier.padding(top = 8.dp)) { Text("Remove Photo") }
+        } else {
+            Button(onClick = { pickLauncher.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Text("Pick Photo") }
+        }
+
         OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(
             value = summary,
@@ -113,7 +155,8 @@ fun AddRecipeScreen(onSave: (Recipe) -> Unit, onCancel: () -> Unit, modifier: Mo
                             title = title.trim(),
                             summary = summary.ifBlank { null },
                             ingredients = ingDomain,
-                            steps = stepsDomain
+                            steps = stepsDomain,
+                            photo = photoBytes
                         )
                     )
                 }

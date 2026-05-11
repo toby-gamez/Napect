@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -56,10 +57,11 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.with
+import com.tkolymp.napect.ui.recipes.UrlImportScreen
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
-fun NapectApp(vm: RecipeViewModel) {
+fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlImportViewModel? = null, initialSharedUrl: String? = null) {
     // selected bottom nav destination (keeps the bottom bar highlighted)
     var selectedDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var showAdd by rememberSaveable { mutableStateOf(false) }
@@ -108,6 +110,14 @@ fun NapectApp(vm: RecipeViewModel) {
                         }
                     }
                 }
+                , actions = {
+                    // link icon -> open import screen if importVm available
+                    if (importVm != null) {
+                        IconButton(onClick = { navController.navigate("url_import") }) {
+                            Icon(Icons.Filled.Link, contentDescription = "Import URL")
+                        }
+                    }
+                }
             )
         }, floatingActionButton = {
             // navigate to add screen
@@ -139,6 +149,9 @@ fun NapectApp(vm: RecipeViewModel) {
                 }
                 composable(AppDestinations.SETTINGS.name) {
                     SettingsScreen()
+                }
+                composable("url_import") {
+                    importVm?.let { UrlImportScreen(importVm = it, initialUrl = initialSharedUrl, onSaved = { id -> navController.popBackStack() }, onCancel = { navController.popBackStack() }) }
                 }
                 composable("add") {
                     AddRecipeScreen(onSave = { r -> vm.createRecipe(r) { navController.popBackStack() } }, onCancel = { navController.popBackStack() })

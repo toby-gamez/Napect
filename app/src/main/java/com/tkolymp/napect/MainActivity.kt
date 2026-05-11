@@ -9,6 +9,9 @@ import com.tkolymp.napect.ui.theme.NapectTheme
 import androidx.lifecycle.ViewModelProvider
 import com.tkolymp.napect.ui.recipes.RecipeViewModel
 import com.tkolymp.napect.ui.recipes.RecipeViewModelFactory
+import com.tkolymp.napect.data.network.UrlImportService
+import com.tkolymp.napect.ui.recipes.UrlImportViewModelFactory
+import com.tkolymp.napect.ui.recipes.UrlImportViewModel
 import com.tkolymp.napect.data.local.DatabaseProvider
 import com.tkolymp.napect.data.repository.RecipeRepositoryImpl
 
@@ -22,9 +25,20 @@ class MainActivity : ComponentActivity() {
         val repo = RecipeRepositoryImpl(db.recipeDao())
         val vm: RecipeViewModel = ViewModelProvider(this, RecipeViewModelFactory(repo)).get(RecipeViewModel::class.java)
 
+        // URL import service & ViewModel
+        val importService = UrlImportService()
+        val importVm: UrlImportViewModel = ViewModelProvider(this, UrlImportViewModelFactory(importService, repo)).get(UrlImportViewModel::class.java)
+
+        // detect shared URL/text
+        val sharedUrl: String? = intent?.let { i ->
+            if (i.action == android.content.Intent.ACTION_SEND && i.type == "text/plain") {
+                i.getStringExtra(android.content.Intent.EXTRA_TEXT)
+            } else null
+        }
+
         setContent {
             NapectTheme {
-                NapectApp(vm)
+                NapectApp(vm, importVm, sharedUrl)
             }
         }
     }

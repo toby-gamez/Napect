@@ -26,6 +26,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.tkolymp.napect.domain.model.Recipe
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
 
 @Composable
 fun RecipeDetailScreen(
@@ -37,6 +42,10 @@ fun RecipeDetailScreen(
     var servings by remember { mutableStateOf(recipe.servingsBase.coerceAtLeast(1)) }
 
     Column(modifier = modifier.padding(16.dp)) {
+        recipe.photo?.let { bytes ->
+            val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            Image(bitmap = bmp.asImageBitmap(), contentDescription = "Recipe photo", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
+        }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text(recipe.title, style = MaterialTheme.typography.headlineSmall)
             Row(verticalAlignment = Alignment.CenterVertically) {

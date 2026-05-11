@@ -41,7 +41,7 @@ Polévky · Hlavní jídla · Dezerty · Pečení · Snídaně · Svátky · Ryc
 
 | Způsob | Jak to funguje |
 |---|---|
-| Sdílet odkaz | Android share sheet z prohlížeče → appka stáhne stránku, Gemini Nano extrahuje recept |
+| Sdílet odkaz | Android share sheet z prohlížeče → appka otevře import URL obrazovku a stáhne stránku (JSON-LD parsing), uživatel může zkontrolovat a uložit (implementováno) |
 | Sdílet soubor / foto | Share sheet → ML Kit OCR + Gemini Nano strukturuje text |
 | Foto papíru | CameraX v aplikaci → ML Kit OCR + Gemini Nano strukturuje |
 | Ručně | Formulář — název, ingredience, kroky, foto z galerie nebo fotoaparátu |
@@ -68,8 +68,8 @@ Polévky · Hlavní jídla · Dezerty · Pečení · Snídaně · Svátky · Ryc
 
 | Funkce | Detail |
 |---|---|
-| Přidání receptu | Odkaz, foto, soubor, ručně — ruční přidání podporuje název, ingredience a kroky (částečně implementováno) |
-| AI kategorizace | Automaticky po uložení, on-device (neimplementováno) |
+| Přidání receptu | Odkaz, foto, soubor, ručně — ruční přidání podporuje název, ingredience a kroky (implementováno), foto z galerie (implementováno) |
+| AI kategorizace | Automaticky po uložení, on-device (rule-based classifier implemented as fallback) |
 | Sumarizace + ingredience | Sumarizace: neimplementováno; Strukturování ingrediencí: UI pro zadání implementováno |
 | Škálování porcí | +/– v detailu receptu, přepočet ingrediencí (implementováno) |
 | Procházení & vyhledávání | Fulltext + filtr dle kategorie (základní vyhledávání v UI implementováno) |
