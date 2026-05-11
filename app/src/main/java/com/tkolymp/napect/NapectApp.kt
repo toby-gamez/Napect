@@ -23,8 +23,21 @@ import androidx.compose.ui.Modifier
 import com.tkolymp.napect.ui.recipes.AddRecipeScreen
 import com.tkolymp.napect.ui.recipes.RecipeListScreen
 import com.tkolymp.napect.ui.recipes.RecipeViewModel
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.with
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun NapectApp(vm: RecipeViewModel) {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
@@ -33,7 +46,12 @@ fun NapectApp(vm: RecipeViewModel) {
     AppNavBar(currentDestination = currentDestination, onDestinationChange = { currentDestination = it }) {
         Scaffold(modifier = Modifier.fillMaxSize(), topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(if (showAdd) "Add Recipe" else currentDestination.label) },
+                title = {
+                    // animate title changes
+                    AnimatedContent(targetState = if (showAdd) "Add Recipe" else currentDestination.label, transitionSpec = {
+                        fadeIn(tween(150)).togetherWith(fadeOut(tween(150)))
+                    }) { Text(it) }
+                },
                 navigationIcon = {
                     if (showAdd) {
                         IconButton(onClick = { showAdd = false }) {
@@ -43,19 +61,39 @@ fun NapectApp(vm: RecipeViewModel) {
                 }
             )
         }, floatingActionButton = {
-            if (!showAdd) {
+            // animate FAB appearance/disappearance
+            AnimatedVisibility(visible = !showAdd, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
                 FloatingActionButton(onClick = { showAdd = true }) {
                     Icon(imageVector = Icons.Filled.Add, contentDescription = "Add")
                 }
             }
         }) { innerPadding ->
-            val items = vm.recipes.collectAsState().value
-            if (showAdd) {
-                AddRecipeScreen(onSave = { r ->
-                    vm.createRecipe(r) { showAdd = false }
-                }, onCancel = { showAdd = false }, modifier = Modifier.padding(innerPadding))
-            } else {
-                RecipeListScreen(recipes = items, contentPadding = innerPadding)
+            val items by vm.recipes.collectAsState()
+
+            // Animate switching between list and add screen
+            AnimatedContent(targetState = showAdd, transitionSpec = {
+                val duration = 300
+                if (targetState) {
+                    val enter = slideInHorizontally(initialOffsetX = { fullWidth -> fullWidth }, animationSpec = tween(duration)) +
+                        fadeIn(animationSpec = tween(duration))
+                    val exit = slideOutHorizontally(targetOffsetX = { fullWidth -> -fullWidth }, animationSpec = tween(duration)) +
+                        fadeOut(animationSpec = tween(duration))
+                    enter.togetherWith(exit).using(SizeTransform(clip = false))
+                } else {
+                    val enter = slideInHorizontally(initialOffsetX = { fullWidth -> -fullWidth }, animationSpec = tween(duration)) +
+                        fadeIn(animationSpec = tween(duration))
+                    val exit = slideOutHorizontally(targetOffsetX = { fullWidth -> fullWidth }, animationSpec = tween(duration)) +
+                        fadeOut(animationSpec = tween(duration))
+                    enter.togetherWith(exit).using(SizeTransform(clip = false))
+                }
+            }, contentKey = { it }) { isAdd ->
+                if (isAdd) {
+                    AddRecipeScreen(onSave = { r ->
+                        vm.createRecipe(r) { showAdd = false }
+                    }, onCancel = { showAdd = false }, modifier = Modifier.padding(innerPadding))
+                } else {
+                    RecipeListScreen(recipes = items, contentPadding = innerPadding)
+                }
             }
         }
     }
