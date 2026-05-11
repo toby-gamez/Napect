@@ -20,6 +20,8 @@ fun RecipeWithDetails.toDomain(): Recipe = Recipe(
     category = recipe.category?.let { try { Category.valueOf(it) } catch (e: Exception) { Category.UNKNOWN } } ?: Category.UNKNOWN,
     photo = recipe.photo,
     servingsBase = recipe.servingsBase,
+    ingredients = ingredients.map { it.toDomain() },
+    steps = steps.map { it.toDomain() },
     createdAt = Date(recipe.createdAt),
     updatedAt = Date(recipe.updatedAt)
 )

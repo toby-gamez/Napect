@@ -13,8 +13,10 @@ class RecipeRepositoryImpl(
 ) : RecipeRepository {
     override suspend fun createRecipe(recipe: Recipe): Long {
         val entity = recipe.toEntity()
-        // we don't handle ingredients/steps yet from domain; minimal create
-        return dao.insertRecipe(entity)
+        val ingredientEntities = recipe.ingredients.map { it.toEntity() }
+        val stepEntities = recipe.steps.map { it.toEntity() }
+        // insert recipe together with details in a transaction
+        return dao.insertRecipeWithDetails(entity, ingredientEntities, stepEntities)
     }
 
     override suspend fun updateRecipe(recipe: Recipe) {

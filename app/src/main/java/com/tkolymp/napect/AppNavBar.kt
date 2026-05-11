@@ -19,7 +19,7 @@ fun AppNavBar(
 ) {
     NavigationSuiteScaffold(
         navigationSuiteItems = {
-            AppDestinations.entries.forEach { dest ->
+            AppDestinations.values().forEach { dest ->
                 item(
                     icon = {
                         val image: ImageVector = if (dest == currentDestination) dest.filledIcon else dest.outlinedIcon

@@ -12,6 +12,8 @@ data class Recipe(
     val category: Category = Category.UNKNOWN,
     val photo: ByteArray? = null,
     val servingsBase: Int = 1,
+    val ingredients: List<Ingredient> = emptyList(),
+    val steps: List<Step> = emptyList(),
     val createdAt: Date = Date(),
     val updatedAt: Date = Date(),
 )

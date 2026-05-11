@@ -68,12 +68,12 @@ Polévky · Hlavní jídla · Dezerty · Pečení · Snídaně · Svátky · Ryc
 
 | Funkce | Detail |
 |---|---|
-| Přidání receptu | Odkaz, foto, soubor, ručně — vše zpracuje Gemini Nano |
-| AI kategorizace | Automaticky po uložení, on-device |
-| Sumarizace + ingredience | Gemini Nano, strukturovaný výstup |
-| Škálování porcí | +/– v detailu receptu, přepočet ingrediencí |
-| Procházení & vyhledávání | Fulltext + filtr dle kategorie |
-| Oblíbené ⭐ | Označit recept jako oblíbený |
+| Přidání receptu | Odkaz, foto, soubor, ručně — ruční přidání podporuje název, ingredience a kroky (částečně implementováno) |
+| AI kategorizace | Automaticky po uložení, on-device (neimplementováno) |
+| Sumarizace + ingredience | Sumarizace: neimplementováno; Strukturování ingrediencí: UI pro zadání implementováno |
+| Škálování porcí | +/– v detailu receptu, přepočet ingrediencí (implementováno) |
+| Procházení & vyhledávání | Fulltext + filtr dle kategorie (základní vyhledávání v UI implementováno) |
+| Oblíbené ⭐ | Označit recept jako oblíbený (implementováno) |
 
 ### Po MVP
 
