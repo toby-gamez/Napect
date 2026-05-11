@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.tkolymp.napect.data.ai.RecipeClassifier
 import com.tkolymp.napect.data.network.ImportedRecipeData
 import com.tkolymp.napect.data.network.UrlImportService
+import com.tkolymp.napect.data.ai.GeminiNanoService
 import com.tkolymp.napect.domain.model.Ingredient
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.model.Step
@@ -24,7 +25,8 @@ sealed interface UrlImportState {
 
 class UrlImportViewModel(
     private val service: UrlImportService,
-    private val repo: RecipeRepository
+    private val repo: RecipeRepository,
+    private val gemini: GeminiNanoService? = null
 ) : ViewModel() {
     private val _state = MutableStateFlow<UrlImportState>(UrlImportState.Idle)
     val state: StateFlow<UrlImportState> = _state.asStateFlow()
@@ -32,7 +34,13 @@ class UrlImportViewModel(
     fun fetchUrl(url: String) {
         viewModelScope.launch {
             _state.value = UrlImportState.Loading
-            val res = service.importFromUrl(url)
+            // Prefer Gemini if provided and available
+            val res = try {
+                if (gemini != null && gemini.isGeminiAvailable()) gemini.extractRecipeFromUrl(url) else service.importFromUrl(url)
+            } catch (e: Exception) {
+                service.importFromUrl(url)
+            }
+
             if (res.isSuccess) {
                 _state.value = UrlImportState.Success(res.getOrThrow())
             } else {
@@ -43,7 +51,18 @@ class UrlImportViewModel(
 
     fun saveImported(data: ImportedRecipeData, onComplete: (Long) -> Unit = {}) {
         viewModelScope.launch {
-            val ing = data.ingredients.mapIndexed { idx, s -> Ingredient(amount = 0.0, unit = null, name = s, sortOrder = idx) }
+            // parse ingredient strings into structured ingredients when possible
+            val ing = data.ingredients.mapIndexed { idx, s ->
+                try {
+                    val parsed = com.tkolymp.napect.data.parse.IngredientParser.parse(s)
+                    val amt = parsed.amount ?: 0.0
+                    val unit = parsed.unit
+                    val name = if (parsed.name.isBlank()) s else parsed.name
+                    Ingredient(amount = amt, unit = unit, name = name, sortOrder = idx)
+                } catch (e: Exception) {
+                    Ingredient(amount = 0.0, unit = null, name = s, sortOrder = idx)
+                }
+            }
             val steps = data.steps.mapIndexed { idx, s -> Step(stepNumber = idx + 1, instruction = s) }
             val category = RecipeClassifier.classify(data.title, data.ingredients, data.steps)
             val recipe = Recipe(

@@ -130,6 +130,13 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
             val items by vm.recipes.collectAsState()
             val searchResults by vm.searchResults.collectAsState()
 
+            // If the app was opened via share and importVm + initialSharedUrl are provided, navigate to the import screen
+            LaunchedEffect(initialSharedUrl) {
+                if (!initialSharedUrl.isNullOrBlank() && importVm != null) {
+                    navController.navigate("url_import")
+                }
+            }
+
             NavHost(navController = navController, startDestination = AppDestinations.HOME.name, modifier = Modifier.padding(innerPadding)) {
                 composable(AppDestinations.HOME.name) {
                     val baseList = items

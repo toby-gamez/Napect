@@ -27,7 +27,9 @@ class MainActivity : ComponentActivity() {
 
         // URL import service & ViewModel
         val importService = UrlImportService()
-        val importVm: UrlImportViewModel = ViewModelProvider(this, UrlImportViewModelFactory(importService, repo)).get(UrlImportViewModel::class.java)
+        // Gemini Nano service wrapper (uses fallback when Gemini not available)
+        val geminiService = com.tkolymp.napect.data.ai.GeminiNanoService(applicationContext, importService)
+        val importVm: UrlImportViewModel = ViewModelProvider(this, UrlImportViewModelFactory(importService, repo, geminiService)).get(UrlImportViewModel::class.java)
 
         // detect shared URL/text
         val sharedUrl: String? = intent?.let { i ->

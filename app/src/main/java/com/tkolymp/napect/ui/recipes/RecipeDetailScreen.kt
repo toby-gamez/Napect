@@ -2,6 +2,8 @@ package com.tkolymp.napect.ui.recipes
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.tkolymp.napect.domain.model.Recipe
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -41,7 +44,7 @@ fun RecipeDetailScreen(
 ) {
     var servings by remember { mutableStateOf(recipe.servingsBase.coerceAtLeast(1)) }
 
-    Column(modifier = modifier.padding(16.dp)) {
+    Column(modifier = modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         recipe.photo?.let { bytes ->
             val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             Image(bitmap = bmp.asImageBitmap(), contentDescription = "Recipe photo", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
@@ -75,9 +78,8 @@ fun RecipeDetailScreen(
 
         Spacer(modifier = Modifier.size(12.dp))
         Text("Ingredients", style = MaterialTheme.typography.titleMedium)
-        LazyColumn {
-            items(recipe.ingredients) { ing ->
-                // scale amount proportionally
+        Column {
+            recipe.ingredients.forEach { ing ->
                 val scaled = if (recipe.servingsBase > 0) ing.amount * servings.toDouble() / recipe.servingsBase.toDouble() else ing.amount
                 Text("${scaled.takeIf { !it.isNaN() } ?: ing.amount} ${ing.unit.orEmpty()} ${ing.name}")
             }
@@ -85,8 +87,8 @@ fun RecipeDetailScreen(
 
         Spacer(modifier = Modifier.size(12.dp))
         Text("Steps", style = MaterialTheme.typography.titleMedium)
-        LazyColumn {
-            items(recipe.steps) { step ->
+        Column {
+            recipe.steps.forEach { step ->
                 Text("${step.stepNumber}. ${step.instruction}", modifier = Modifier.padding(top = 6.dp))
             }
         }

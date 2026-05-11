@@ -69,7 +69,7 @@ Polévky · Hlavní jídla · Dezerty · Pečení · Snídaně · Svátky · Ryc
 | Funkce | Detail |
 |---|---|
 | Přidání receptu | Odkaz, foto, soubor, ručně — ruční přidání podporuje název, ingredience a kroky (implementováno), foto z galerie (implementováno) |
-| AI kategorizace | Automaticky po uložení, on-device (rule-based classifier implemented as fallback) |
+| AI kategorizace | Automaticky po uložení, on-device (rule-based classifier implemented as fallback). URL import will attempt to use Gemini Nano when available; otherwise falls back to JSON-LD parsing and a lightweight summarizer (implemented) |
 | Sumarizace + ingredience | Sumarizace: neimplementováno; Strukturování ingrediencí: UI pro zadání implementováno |
 | Škálování porcí | +/– v detailu receptu, přepočet ingrediencí (implementováno) |
 | Procházení & vyhledávání | Fulltext + filtr dle kategorie (základní vyhledávání v UI implementováno) |

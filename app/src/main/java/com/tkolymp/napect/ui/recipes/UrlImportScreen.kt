@@ -2,6 +2,8 @@ package com.tkolymp.napect.ui.recipes
 
 import android.net.Uri
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
@@ -39,7 +41,7 @@ fun UrlImportScreen(
         if (!initialUrl.isNullOrBlank()) importVm.fetchUrl(initialUrl)
     }
 
-    Column(modifier = Modifier.padding(16.dp)) {
+    Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("URL") }, modifier = Modifier.fillMaxWidth())
         Button(onClick = { if (url.isNotBlank()) importVm.fetchUrl(url) }, modifier = Modifier.padding(top = 8.dp)) {
             Text("Import")
