@@ -6,6 +6,7 @@ import com.tkolymp.napect.data.ai.RecipeClassifier
 import com.tkolymp.napect.data.network.ImportedRecipeData
 import com.tkolymp.napect.data.network.UrlImportService
 import com.tkolymp.napect.data.ai.GeminiNanoService
+import com.tkolymp.napect.data.ai.AiClient
 import com.tkolymp.napect.domain.model.Ingredient
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.model.Step
@@ -26,7 +27,8 @@ sealed interface UrlImportState {
 class UrlImportViewModel(
     private val service: UrlImportService,
     private val repo: RecipeRepository,
-    private val gemini: GeminiNanoService? = null
+    private val gemini: GeminiNanoService? = null,
+    private val ai: AiClient? = null
 ) : ViewModel() {
     private val _state = MutableStateFlow<UrlImportState>(UrlImportState.Idle)
     val state: StateFlow<UrlImportState> = _state.asStateFlow()
@@ -67,7 +69,7 @@ class UrlImportViewModel(
             val category = RecipeClassifier.classify(data.title, data.ingredients, data.steps)
             val recipe = Recipe(
                 title = data.title,
-                summary = data.description,
+                summary = data.description ?: ai?.generateSummary(data.title, ing, steps, data),
                 ingredients = ing,
                 steps = steps,
                 category = category,

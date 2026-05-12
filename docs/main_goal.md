@@ -70,10 +70,30 @@ Polévky · Hlavní jídla · Dezerty · Pečení · Snídaně · Svátky · Ryc
 |---|---|
 | Přidání receptu | Odkaz, foto, soubor, ručně — ruční přidání podporuje název, ingredience a kroky (implementováno), foto z galerie (implementováno) |
 | AI kategorizace | Automaticky po uložení, on-device (rule-based classifier implemented as fallback). URL import will attempt to use Gemini Nano when available; otherwise falls back to JSON-LD parsing and a lightweight summarizer (implemented) |
-| Sumarizace + ingredience | Sumarizace: neimplementováno; Strukturování ingrediencí: UI pro zadání implementováno |
+| Sumarizace + ingredience | Sumarizace: implementováno (fallback summarizer + AiClient integration); Strukturování ingrediencí: UI pro zadání implementováno |
 | Škálování porcí | +/– v detailu receptu, přepočet ingrediencí (implementováno) |
 | Procházení & vyhledávání | Fulltext + filtr dle kategorie (základní vyhledávání v UI implementováno) |
 | Oblíbené ⭐ | Označit recept jako oblíbený (implementováno) |
+
+### Stav implementace (checklist)
+
+Poznámka: níže jsou položky zaškrtnuté podle explicitních poznámek v tomto dokumentu („implementováno", "neimplementováno") a roadmapy.
+
+- [x] Sdílet odkaz (URL import, JSON-LD parsing) — implementováno
+- [x] Ruční přidání: název, ingredience, kroky — implementováno
+- [x] Foto z galerie — implementováno
+- [x] Oblíbené (označit recept) — implementováno
+- [x] Škálování porcí (přepočet ingrediencí) — implementováno
+- [x] Procházení & základní fulltext vyhledávání v UI — implementováno
+- [x] Rule-based AI kategorizace (fallback) — implementováno
+- [x] JSON-LD parsing + lightweight summarizer (fallback) — implementováno
+- [x] Sumarizace (autom. Gemini Nano summary) — implementováno (fallback summarizer + AiClient integration)
+- [x] Strukturování ingrediencí — UI pro zadání implementováno (parsing/automatické rozpoznání částečně/plánováno)
+- [ ] Sdílet soubor / foto (share sheet pro soubory/foto) — neimplementováno / plánováno (Phase 2)
+- [ ] Foto papíru (CameraX + ML Kit OCR) — neimplementováno / plánováno (Phase 2)
+- [ ] Hlasový vstup (speech-to-text + strukturování) — neimplementováno / plánováno (Phase 2)
+- [ ] Fotky receptů v Room DB jako BLOB — plánováno (Phase 2)
+- [ ] Poznámky k receptu, verzování, export/sdílení, týdenní plánování, sezónní doporučení — neimplementováno (Po MVP / Extras)
 
 ### Po MVP
 

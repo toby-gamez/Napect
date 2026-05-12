@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 
-class RecipeViewModel(private val repo: RecipeRepository) : ViewModel() {
+class RecipeViewModel(private val repo: RecipeRepository, private val ai: com.tkolymp.napect.data.ai.AiClient? = null) : ViewModel() {
     val recipes: StateFlow<List<Recipe>> = repo.getAllRecipes()
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -38,7 +38,8 @@ class RecipeViewModel(private val repo: RecipeRepository) : ViewModel() {
     fun createRecipe(recipe: Recipe, onComplete: (Long) -> Unit = {}) {
         viewModelScope.launch {
             val category = if (recipe.category == Category.UNKNOWN) RecipeClassifier.classify(recipe.title, recipe.ingredients.map { it.name }, recipe.steps.map { it.instruction }) else recipe.category
-            val id = repo.createRecipe(recipe.copy(category = category))
+            val summary = recipe.summary ?: ai?.generateSummary(recipe.title, recipe.ingredients, recipe.steps)
+            val id = repo.createRecipe(recipe.copy(category = category, summary = summary))
             onComplete(id)
         }
     }

@@ -23,13 +23,17 @@ class MainActivity : ComponentActivity() {
         // create DB and repository and ViewModel here (manual DI)
         val db = DatabaseProvider.getDatabase(applicationContext)
         val repo = RecipeRepositoryImpl(db.recipeDao())
-        val vm: RecipeViewModel = ViewModelProvider(this, RecipeViewModelFactory(repo)).get(RecipeViewModel::class.java)
-
         // URL import service & ViewModel
         val importService = UrlImportService()
-        // Gemini Nano service wrapper (uses fallback when Gemini not available)
+        // AI client: prefer Gemini wrapper when available, fallback to local summarizer
         val geminiService = com.tkolymp.napect.data.ai.GeminiNanoService(applicationContext, importService)
-        val importVm: UrlImportViewModel = ViewModelProvider(this, UrlImportViewModelFactory(importService, repo, geminiService)).get(UrlImportViewModel::class.java)
+        val aiClient = com.tkolymp.napect.data.ai.DefaultAiClient(geminiService)
+
+        val vm: RecipeViewModel = ViewModelProvider(this, RecipeViewModelFactory(repo, aiClient)).get(RecipeViewModel::class.java)
+
+        // URL import service & ViewModel
+        // Gemini Nano service wrapper (uses fallback when Gemini not available)
+        val importVm: UrlImportViewModel = ViewModelProvider(this, UrlImportViewModelFactory(importService, repo, geminiService, aiClient)).get(UrlImportViewModel::class.java)
 
         // detect shared URL/text
         val sharedUrl: String? = intent?.let { i ->
