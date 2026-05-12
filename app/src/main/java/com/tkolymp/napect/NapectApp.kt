@@ -73,6 +73,12 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    // Top level destinations: these should never show the back arrow
+    val topLevelRoutes = setOf(
+        AppDestinations.HOME.name,
+        AppDestinations.FAVORITES.name,
+        AppDestinations.SETTINGS.name
+    )
 
     // ensure bottom bar highlights match when navigating via navController
     LaunchedEffect(currentRoute) {
@@ -106,7 +112,9 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                     }) { Text(it) }
                 },
                 navigationIcon = {
-                    if (navController.previousBackStackEntry != null) {
+                    // never show back arrow on top-level (bottom-nav) destinations
+                    val isTopLevel = currentRoute in topLevelRoutes
+                    if (!isTopLevel && navController.previousBackStackEntry != null) {
                         IconButton(onClick = { navController.navigateUp() }) {
                             Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                         }
@@ -140,7 +148,11 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
             }
 
             NavHost(navController = navController, startDestination = AppDestinations.HOME.name, modifier = Modifier.padding(innerPadding)) {
-                composable(AppDestinations.HOME.name) {
+                // Tab screens: use a short fade when switching, do not slide
+                composable(AppDestinations.HOME.name,
+                    enterTransition = { fadeIn(tween(150)) },
+                    exitTransition = { fadeOut(tween(150)) }
+                ) {
                     val baseList = items
                     val searchFiltered = if (vm.searchQuery.value.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
                     val categoryFiltered = selectedCategory?.let { c -> searchFiltered.filter { it.category == c } } ?: searchFiltered
@@ -154,7 +166,10 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                         RecipeListScreen(recipes = categoryFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), selectedCategory = selectedCategory, onCategorySelected = { selectedCategory = it }, onDelete = { id -> vm.deleteRecipe(id) })
                     }
                 }
-                composable(AppDestinations.FAVORITES.name) {
+                composable(AppDestinations.FAVORITES.name,
+                    enterTransition = { fadeIn(tween(150)) },
+                    exitTransition = { fadeOut(tween(150)) }
+                ) {
                     val baseList = items.filter { it.isFavorite }
                     val searchFiltered = if (vm.searchQuery.value.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
                     val categoryFiltered = selectedCategory?.let { c -> searchFiltered.filter { it.category == c } } ?: searchFiltered
@@ -165,23 +180,52 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                         RecipeListScreen(recipes = categoryFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), selectedCategory = selectedCategory, onCategorySelected = { selectedCategory = it }, onDelete = { id -> vm.deleteRecipe(id) })
                     }
                 }
-                composable(AppDestinations.SETTINGS.name) {
+                composable(AppDestinations.SETTINGS.name,
+                    enterTransition = { fadeIn(tween(150)) },
+                    exitTransition = { fadeOut(tween(150)) }
+                ) {
                     SettingsScreen()
                 }
-                composable("url_import") {
+
+                // Non-tab screens: slide in from the right on navigation, slide out to the right on pop
+                composable("url_import",
+                    enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
+                    exitTransition = { slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(300)) + fadeOut(tween(300)) },
+                    popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
+                    popExitTransition = { slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(tween(300)) }
+                ) {
                     importVm?.let { UrlImportScreen(importVm = it, initialUrl = initialSharedUrl, onSaved = { id -> navController.popBackStack() }, onCancel = { navController.popBackStack() }) }
                 }
-                composable("add") {
+
+                composable("add",
+                    enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
+                    exitTransition = { slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(300)) + fadeOut(tween(300)) },
+                    popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
+                    popExitTransition = { slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(tween(300)) }
+                ) {
                     AddRecipeScreen(onSave = { r -> vm.createRecipe(r) { navController.popBackStack() } }, onCancel = { navController.popBackStack() })
                 }
-                composable("recipe/{id}/edit", arguments = listOf(navArgument("id") { type = NavType.LongType })) { backStackEntry ->
+
+                composable("recipe/{id}/edit",
+                    arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                    enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
+                    exitTransition = { slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(300)) + fadeOut(tween(300)) },
+                    popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
+                    popExitTransition = { slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(tween(300)) }
+                ) { backStackEntry ->
                     val id = backStackEntry.arguments?.getLong("id") ?: 0L
                     val recipe by vm.getRecipeById(id).collectAsState(initial = null)
                     recipe?.let {
                         AddRecipeScreen(initialRecipe = it, onSave = { updated -> vm.updateRecipe(updated) { navController.popBackStack() } }, onCancel = { navController.popBackStack() })
                     }
                 }
-                composable("recipe/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { backStackEntry ->
+                composable("recipe/{id}",
+                    arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                    enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
+                    exitTransition = { slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(300)) + fadeOut(tween(300)) },
+                    popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
+                    popExitTransition = { slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(tween(300)) }
+                ) { backStackEntry ->
                     val id = backStackEntry.arguments?.getLong("id") ?: 0L
                     val recipe by vm.getRecipeById(id).collectAsState(initial = null)
                     recipe?.let {
