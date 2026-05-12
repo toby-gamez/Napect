@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
 
         // create DB and repository and ViewModel here (manual DI)
         val db = DatabaseProvider.getDatabase(applicationContext)
-        val repo = RecipeRepositoryImpl(db.recipeDao())
+        val repo = RecipeRepositoryImpl(db.recipeDao(), db.tagDao())
         // URL import service & ViewModel
         val importService = UrlImportService()
         // AI client: prefer Gemini wrapper when available, fallback to local summarizer

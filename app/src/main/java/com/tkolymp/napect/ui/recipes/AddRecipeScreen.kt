@@ -43,6 +43,15 @@ import androidx.compose.foundation.text.KeyboardOptions
 import com.tkolymp.napect.domain.model.Ingredient
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.model.Step
+import com.tkolymp.napect.domain.model.Tag
+import com.tkolymp.napect.domain.model.TagGroup
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.AssistChip
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 
 // Stateful holder for UI ingredient inputs to avoid list-replacement issues
 private class IngredientInputState(
@@ -56,7 +65,16 @@ private class IngredientInputState(
 }
 
 @Composable
-fun AddRecipeScreen(onSave: (Recipe) -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier, initialRecipe: Recipe? = null) {
+fun AddRecipeScreen(
+    onSave: (Recipe, List<Long>) -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+    initialRecipe: Recipe? = null,
+    availableTags: List<Tag> = emptyList(),
+    suggestedTagIds: Set<Long> = emptySet(),
+    onSuggest: (Recipe) -> Unit = {},
+    onCreateUserTag: (String, TagGroup) -> Unit = { _, _ -> }
+) {
     val init = initialRecipe
     var title by remember(init) { mutableStateOf(init?.title ?: "") }
     var summary by remember(init) { mutableStateOf(init?.summary ?: "") }
@@ -153,6 +171,81 @@ fun AddRecipeScreen(onSave: (Recipe) -> Unit, onCancel: () -> Unit, modifier: Mo
         }
 
         Spacer(modifier = Modifier.size(12.dp))
+        // Tag picker
+        Text("Tags", fontWeight = FontWeight.Bold)
+        val selectedTagIds = remember { mutableStateListOf<Long>() }
+        // preselect from initial recipe if present
+        LaunchedEffect(init) {
+            selectedTagIds.clear()
+            init?.tags?.forEach { selectedTagIds.add(it.id) }
+        }
+
+        // group tags by group for display
+        val grouped = availableTags.groupBy { it.group }
+        grouped.forEach { (group, tags) ->
+            Text(group.name, modifier = Modifier.padding(top = 8.dp))
+            FlowRow(modifier = Modifier.fillMaxWidth()) {
+                for (t in tags) {
+                    val checked = selectedTagIds.contains(t.id) || suggestedTagIds.contains(t.id)
+                    FilterChip(selected = checked, onClick = {
+                        if (selectedTagIds.contains(t.id)) selectedTagIds.remove(t.id) else selectedTagIds.add(t.id)
+                    }, label = { Text(t.name) }, modifier = Modifier.padding(end = 8.dp))
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.size(8.dp))
+        // Quick suggestion button
+        Button(onClick = {
+            // build a Recipe preview from current fields and request suggestions
+            val ingDomain = ingredients.mapIndexedNotNull { idx, it ->
+                val amt = it.amount.value.toDoubleOrNull() ?: 0.0
+                val unit = it.unit.value.ifBlank { null }
+                val name = it.name.value.trim()
+                if (name.isBlank()) return@mapIndexedNotNull null
+                Ingredient(amount = amt, unit = unit, name = name, sortOrder = idx)
+            }
+            val stepsDomain = steps.mapIndexedNotNull { idx, s ->
+                val instr = s.trim()
+                if (instr.isBlank()) return@mapIndexedNotNull null
+                Step(stepNumber = idx + 1, instruction = instr)
+            }
+            val preview = Recipe(
+                id = init?.id ?: 0L,
+                title = title.trim(),
+                summary = summary.ifBlank { null },
+                ingredients = ingDomain,
+                steps = stepsDomain,
+                photo = photoBytes,
+                servingsBase = servingsBase
+            )
+            onSuggest(preview)
+        }) { Text("Suggest tags") }
+
+        // Create custom tag UI
+        Spacer(modifier = Modifier.size(8.dp))
+        var newTagName by remember { mutableStateOf("") }
+        var expanded by remember { mutableStateOf(false) }
+        var selectedGroup by remember { mutableStateOf(TagGroup.OTHER) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(value = newTagName, onValueChange = { newTagName = it }, label = { Text("New tag name") }, modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = { expanded = true }) { Text(selectedGroup.name) }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                TagGroup.values().forEach { g ->
+                    DropdownMenuItem(text = { Text(g.name) }, onClick = { selectedGroup = g; expanded = false })
+                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = {
+                if (newTagName.isNotBlank()) {
+                    onCreateUserTag(newTagName.trim(), selectedGroup)
+                    newTagName = ""
+                }
+            }) { Text("Create tag") }
+        }
+
+        Spacer(modifier = Modifier.size(12.dp))
         Text("Steps")
         Column(modifier = Modifier.fillMaxWidth()) {
             steps.forEachIndexed { index, step ->
@@ -196,7 +289,8 @@ fun AddRecipeScreen(onSave: (Recipe) -> Unit, onCancel: () -> Unit, modifier: Mo
                             steps = stepsDomain,
                             photo = photoBytes,
                             servingsBase = servingsBase
-                        )
+                        ),
+                        selectedTagIds.toList()
                     )
                 }
             }) {

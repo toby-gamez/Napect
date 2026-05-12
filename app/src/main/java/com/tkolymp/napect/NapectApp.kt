@@ -203,7 +203,17 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                     popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
                     popExitTransition = { slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(tween(300)) }
                 ) {
-                    AddRecipeScreen(onSave = { r -> vm.createRecipe(r) { navController.popBackStack() } }, onCancel = { navController.popBackStack() })
+                    val allTags by vm.allTags.collectAsState()
+                    val suggested by vm.suggestedTags.collectAsState()
+                    val suggestedIds = suggested?.let { (it.confirmed + it.newlyCreated).map { t -> t.id }.toSet() } ?: emptySet()
+                    AddRecipeScreen(
+                        onSave = { r, tagIds -> vm.createRecipeWithTags(r, tagIds) { navController.popBackStack() } },
+                        onCancel = { navController.popBackStack() },
+                        availableTags = allTags,
+                        suggestedTagIds = suggestedIds,
+                        onSuggest = { preview -> vm.suggestTagsForRecipe(preview) },
+                        onCreateUserTag = { name, group -> vm.createUserTag(name, group) }
+                    )
                 }
 
                 navComposable("recipe/{id}/edit",
@@ -216,7 +226,18 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                     val id = backStackEntry.arguments?.getLong("id") ?: 0L
                     val recipe by vm.getRecipeById(id).collectAsState(initial = null)
                     recipe?.let {
-                        AddRecipeScreen(initialRecipe = it, onSave = { updated -> vm.updateRecipe(updated) { navController.popBackStack() } }, onCancel = { navController.popBackStack() })
+                        val allTags by vm.allTags.collectAsState()
+                        val suggested by vm.suggestedTags.collectAsState()
+                        val suggestedIds = suggested?.let { (it.confirmed + it.newlyCreated).map { t -> t.id }.toSet() } ?: emptySet()
+                        AddRecipeScreen(
+                            initialRecipe = it,
+                            onSave = { updated, tagIds -> vm.updateRecipeWithTags(updated, tagIds) { navController.popBackStack() } },
+                            onCancel = { navController.popBackStack() },
+                            availableTags = allTags,
+                            suggestedTagIds = suggestedIds,
+                            onSuggest = { preview -> vm.suggestTagsForRecipe(preview) },
+                            onCreateUserTag = { name, group -> vm.createUserTag(name, group) }
+                        )
                     }
                 }
                 navComposable("recipe/{id}",

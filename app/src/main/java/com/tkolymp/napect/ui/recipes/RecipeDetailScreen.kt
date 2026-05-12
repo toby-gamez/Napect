@@ -38,6 +38,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.AssistChip
 // single dp import above
 @Composable
 fun RecipeDetailScreen(
@@ -91,6 +93,16 @@ fun RecipeDetailScreen(
         }
 
         recipe.summary?.let { Text(it, modifier = Modifier.padding(top = 8.dp)) }
+
+        // Tags
+        if (recipe.tags.isNotEmpty()) {
+            Spacer(modifier = Modifier.size(8.dp))
+            FlowRow(modifier = Modifier.fillMaxWidth()) {
+                recipe.tags.forEach { t ->
+                    AssistChip(onClick = {}, label = { Text(t.name) }, modifier = Modifier.padding(end = 8.dp))
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.size(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {

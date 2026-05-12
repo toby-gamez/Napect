@@ -54,4 +54,23 @@ interface RecipeDao {
     @Transaction
     @Query("SELECT * FROM recipes WHERE title LIKE '%' || :query || '%' OR summary LIKE '%' || :query || '%' ORDER BY created_at DESC")
     fun search(query: String): Flow<List<RecipeWithDetails>>
+
+    @Transaction
+    @Query("SELECT r.* FROM recipes r INNER JOIN recipe_tags rt ON r.id = rt.recipe_id WHERE rt.tag_id = :tagId ORDER BY r.created_at DESC")
+    fun getRecipesByTagId(tagId: Long): Flow<List<RecipeWithDetails>>
+
+    @Query("DELETE FROM recipe_tags WHERE recipe_id = :recipeId")
+    suspend fun deleteRecipeTags(recipeId: Long)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertRecipeTagCrossRefs(refs: List<com.tkolymp.napect.data.local.entity.RecipeTagCrossRef>)
+
+    @Transaction
+    suspend fun setRecipeTags(recipeId: Long, tagIds: List<Long>) {
+        deleteRecipeTags(recipeId)
+        if (tagIds.isNotEmpty()) {
+            val refs = tagIds.map { com.tkolymp.napect.data.local.entity.RecipeTagCrossRef(recipeId = recipeId, tagId = it) }
+            insertRecipeTagCrossRefs(refs)
+        }
+    }
 }

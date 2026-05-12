@@ -6,13 +6,17 @@ import com.tkolymp.napect.data.local.dao.RecipeDao
 import com.tkolymp.napect.data.local.entity.IngredientEntity
 import com.tkolymp.napect.data.local.entity.RecipeEntity
 import com.tkolymp.napect.data.local.entity.StepEntity
+import com.tkolymp.napect.data.local.entity.TagEntity
+import com.tkolymp.napect.data.local.entity.RecipeTagCrossRef
+import com.tkolymp.napect.data.local.dao.TagDao
 
 @Database(
-    entities = [RecipeEntity::class, IngredientEntity::class, StepEntity::class],
-    // bumped to 2 to allow destructive migration during development when schema changed
-    version = 2,
+    entities = [RecipeEntity::class, IngredientEntity::class, StepEntity::class, TagEntity::class, RecipeTagCrossRef::class],
+    // bumped to 3 to add tags + recipe_tags
+    version = 3,
     exportSchema = false
 )
 abstract class NapectDatabase : RoomDatabase() {
     abstract fun recipeDao(): RecipeDao
+    abstract fun tagDao(): TagDao
 }

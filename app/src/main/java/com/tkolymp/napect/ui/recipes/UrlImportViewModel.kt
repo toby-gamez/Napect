@@ -75,7 +75,10 @@ class UrlImportViewModel(
                 category = category,
                 sourceUrl = data.sourceUrl
             )
-            val id = repo.createRecipe(recipe)
+            // Suggest tags (keyword-only suggester) and create any missing tags; then save recipe with tag ids
+            val suggestion = try { repo.suggestTagsForRecipe(recipe) } catch (e: Exception) { null }
+            val tagIds = suggestion?.let { (it.confirmed + it.newlyCreated).map { t -> t.id } } ?: emptyList()
+            val id = repo.saveRecipeWithTags(recipe, tagIds)
             _state.value = UrlImportState.Saved
             onComplete(id)
         }

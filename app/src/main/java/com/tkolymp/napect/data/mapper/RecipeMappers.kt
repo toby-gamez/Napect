@@ -8,6 +8,9 @@ import com.tkolymp.napect.domain.model.Category
 import com.tkolymp.napect.domain.model.Ingredient
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.model.Step
+import com.tkolymp.napect.data.local.entity.TagEntity
+import com.tkolymp.napect.domain.model.Tag
+import com.tkolymp.napect.domain.model.TagGroup
 import java.util.*
 
 fun RecipeWithDetails.toDomain(): Recipe = Recipe(
@@ -22,6 +25,7 @@ fun RecipeWithDetails.toDomain(): Recipe = Recipe(
     servingsBase = recipe.servingsBase,
     ingredients = ingredients.map { it.toDomain() },
     steps = steps.map { it.toDomain() },
+    tags = tags.map { it.toDomain() },
     createdAt = Date(recipe.createdAt),
     updatedAt = Date(recipe.updatedAt)
 )
@@ -70,4 +74,20 @@ fun StepEntity.toDomain(): Step = Step(
     recipeId = recipeId,
     stepNumber = stepNumber,
     instruction = instruction,
+)
+
+fun TagEntity.toDomain(): Tag = Tag(
+    id = id,
+    name = name,
+    group = try { TagGroup.valueOf(group) } catch (e: Exception) { TagGroup.OTHER },
+    isAiGenerated = isAiGenerated != 0,
+    isUserCreated = isUserCreated != 0
+)
+
+fun Tag.toEntity(): TagEntity = TagEntity(
+    id = id,
+    name = name,
+    group = group.name,
+    isAiGenerated = if (isAiGenerated) 1 else 0,
+    isUserCreated = if (isUserCreated) 1 else 0
 )

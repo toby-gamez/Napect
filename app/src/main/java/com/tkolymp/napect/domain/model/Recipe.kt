@@ -14,6 +14,7 @@ data class Recipe(
     val servingsBase: Int = 1,
     val ingredients: List<Ingredient> = emptyList(),
     val steps: List<Step> = emptyList(),
+    val tags: List<Tag> = emptyList(),
     val createdAt: Date = Date(),
     val updatedAt: Date = Date(),
 )

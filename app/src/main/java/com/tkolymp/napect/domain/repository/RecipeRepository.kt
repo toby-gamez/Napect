@@ -11,4 +11,10 @@ interface RecipeRepository {
     fun getRecipeById(id: Long): Flow<Recipe?>
     fun search(query: String): Flow<List<Recipe>>
     suspend fun toggleFavorite(id: Long, value: Boolean)
+
+    // Tags
+    fun getAllTags(): Flow<List<com.tkolymp.napect.domain.model.Tag>>
+    suspend fun createUserTag(name: String, group: com.tkolymp.napect.domain.model.TagGroup): com.tkolymp.napect.domain.model.Tag
+    suspend fun suggestTagsForRecipe(recipe: Recipe): com.tkolymp.napect.data.ai.TagSuggestion
+    suspend fun saveRecipeWithTags(recipe: Recipe, tagIds: List<Long>): Long
 }
