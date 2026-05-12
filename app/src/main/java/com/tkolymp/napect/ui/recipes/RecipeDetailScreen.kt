@@ -24,6 +24,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
+import com.tkolymp.napect.data.local.SettingsRepository
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -45,7 +48,13 @@ fun RecipeDetailScreen(
     onDelete: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    var servings by remember { mutableStateOf(recipe.servingsBase.coerceAtLeast(1)) }
+    // Use the user's default servings preference (from Settings) as the initial value
+    // so the app default is respected when opening a recipe detail.
+    val context = LocalContext.current
+    val repo = SettingsRepository(context)
+    val prefs by repo.prefsFlow.collectAsState(initial = com.tkolymp.napect.data.local.UserPreferences())
+
+    var servings by remember(recipe, prefs) { mutableStateOf(prefs.defaultServings.coerceAtLeast(1)) }
 
     var showConfirmDelete by remember { mutableStateOf(false) }
 

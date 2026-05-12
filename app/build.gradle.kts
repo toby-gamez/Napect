@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     // Navigation for Compose
     implementation("androidx.navigation:navigation-compose:2.7.2")
+    // Animated navigation handled by AndroidX navigation-compose now; remove accompanist
     // Room
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

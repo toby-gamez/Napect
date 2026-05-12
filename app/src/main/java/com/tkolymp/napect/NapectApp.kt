@@ -22,10 +22,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable as navComposable
+import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.compose.runtime.LaunchedEffect
@@ -149,7 +149,7 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
 
             NavHost(navController = navController, startDestination = AppDestinations.HOME.name, modifier = Modifier.padding(innerPadding)) {
                 // Tab screens: use a short fade when switching, do not slide
-                composable(AppDestinations.HOME.name,
+                navComposable(AppDestinations.HOME.name,
                     enterTransition = { fadeIn(tween(150)) },
                     exitTransition = { fadeOut(tween(150)) }
                 ) {
@@ -166,7 +166,7 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                         RecipeListScreen(recipes = categoryFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), selectedCategory = selectedCategory, onCategorySelected = { selectedCategory = it }, onDelete = { id -> vm.deleteRecipe(id) })
                     }
                 }
-                composable(AppDestinations.FAVORITES.name,
+                navComposable(AppDestinations.FAVORITES.name,
                     enterTransition = { fadeIn(tween(150)) },
                     exitTransition = { fadeOut(tween(150)) }
                 ) {
@@ -180,7 +180,7 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                         RecipeListScreen(recipes = categoryFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), selectedCategory = selectedCategory, onCategorySelected = { selectedCategory = it }, onDelete = { id -> vm.deleteRecipe(id) })
                     }
                 }
-                composable(AppDestinations.SETTINGS.name,
+                navComposable(AppDestinations.SETTINGS.name,
                     enterTransition = { fadeIn(tween(150)) },
                     exitTransition = { fadeOut(tween(150)) }
                 ) {
@@ -188,7 +188,7 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                 }
 
                 // Non-tab screens: slide in from the right on navigation, slide out to the right on pop
-                composable("url_import",
+                navComposable("url_import",
                     enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
                     exitTransition = { slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(300)) + fadeOut(tween(300)) },
                     popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
@@ -197,7 +197,7 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                     importVm?.let { UrlImportScreen(importVm = it, initialUrl = initialSharedUrl, onSaved = { id -> navController.popBackStack() }, onCancel = { navController.popBackStack() }) }
                 }
 
-                composable("add",
+                navComposable("add",
                     enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
                     exitTransition = { slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(300)) + fadeOut(tween(300)) },
                     popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
@@ -206,7 +206,7 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                     AddRecipeScreen(onSave = { r -> vm.createRecipe(r) { navController.popBackStack() } }, onCancel = { navController.popBackStack() })
                 }
 
-                composable("recipe/{id}/edit",
+                navComposable("recipe/{id}/edit",
                     arguments = listOf(navArgument("id") { type = NavType.LongType }),
                     enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
                     exitTransition = { slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(300)) + fadeOut(tween(300)) },
@@ -219,7 +219,7 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                         AddRecipeScreen(initialRecipe = it, onSave = { updated -> vm.updateRecipe(updated) { navController.popBackStack() } }, onCancel = { navController.popBackStack() })
                     }
                 }
-                composable("recipe/{id}",
+                navComposable("recipe/{id}",
                     arguments = listOf(navArgument("id") { type = NavType.LongType }),
                     enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
                     exitTransition = { slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(300)) + fadeOut(tween(300)) },
