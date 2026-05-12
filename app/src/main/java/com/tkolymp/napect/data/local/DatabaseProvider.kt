@@ -9,7 +9,13 @@ object DatabaseProvider {
 
     fun getDatabase(context: Context): NapectDatabase {
         return INSTANCE ?: synchronized(this) {
-            val instance = Room.databaseBuilder(context.applicationContext, NapectDatabase::class.java, "napect.db").build()
+            // Use destructive migration during development / early releases to avoid crashes
+            // when the schema changes. For production, replace with proper Migration objects.
+            val instance = Room.databaseBuilder(
+                context.applicationContext,
+                NapectDatabase::class.java,
+                "napect.db"
+            ).fallbackToDestructiveMigration().build()
             INSTANCE = instance
             instance
         }

@@ -12,7 +12,8 @@ import androidx.room.PrimaryKey
         parentColumns = ["id"],
         childColumns = ["recipe_id"],
         onDelete = ForeignKey.CASCADE
-    )]
+    )],
+    indices = [androidx.room.Index(value = ["recipe_id"]) ]
 )
 data class IngredientEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

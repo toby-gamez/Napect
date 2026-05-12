@@ -9,7 +9,8 @@ import com.tkolymp.napect.data.local.entity.StepEntity
 
 @Database(
     entities = [RecipeEntity::class, IngredientEntity::class, StepEntity::class],
-    version = 1,
+    // bumped to 2 to allow destructive migration during development when schema changed
+    version = 2,
     exportSchema = false
 )
 abstract class NapectDatabase : RoomDatabase() {

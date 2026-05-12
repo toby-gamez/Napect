@@ -50,8 +50,51 @@ class GeminiNanoService(private val context: Context, private val fallback: UrlI
     }
 
     fun isGeminiAvailable(): Boolean {
-        // Heuristic: Gemini Nano requires AICore on supported devices. We don't crash if not present.
-        // This is a placeholder; a real implementation would check the presence of the AICore APIs.
-        return android.os.Build.VERSION.SDK_INT >= 34
+        // Try to detect AICore / on-device Gemini availability without linking the SDK.
+        // We prefer a reflection-based check so the app doesn't require the AICore
+        // compile-time dependency and can run on all devices.
+        return try {
+            // Check for a common AICore/GenerativeModel class. Only report available when
+            // the AICore classes are actually present — avoids attempting to use Gemini
+            // on devices that do not provide the SDK (e.g., Samsung devices without AICore).
+            Class.forName("com.google.ai.generativelanguage.GenerativeModel")
+            true
+        } catch (e: Throwable) {
+            false
+        }
+    }
+
+    /**
+     * Attempt to ask an on-device model to summarize the recipe. This method uses reflection
+     * to avoid a hard dependency on AICore. If reflection fails or model is unavailable,
+     * null is returned so callers can fallback to local summarizer.
+     */
+    suspend fun summarizeRecipe(title: String, ingredients: List<String>, steps: List<String>): String? = withContext(Dispatchers.IO) {
+        try {
+            // Try to load a hypothetical AICore entrypoint via reflection. The exact API
+            // may differ between devices / SDK versions; this is a best-effort attempt.
+            val aiClass = try { Class.forName("com.google.ai.core.AiClient") } catch (_: Throwable) { null }
+            if (aiClass != null) {
+                // If present, attempt to call a static convenience method `summarize(...)`.
+                // This is intentionally permissive; if signatures differ we'll catch and fallback.
+                try {
+                    val method = aiClass.getMethod("summarize", String::class.java, List::class.java, List::class.java)
+                    val result = method.invoke(null, title, ingredients, steps)
+                    return@withContext result?.toString()
+                } catch (_: Throwable) {
+                    // reflection call failed — fall through to local summarizer
+                }
+            }
+
+            // No on-device API available — fallback to a light summarizer
+            val top = ingredients.take(3).joinToString(", ")
+            return@withContext if (top.isBlank()) {
+                if (title.isBlank()) null else title
+            } else {
+                "${title.trim()}. Hlavní ingredience: $top."
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 }

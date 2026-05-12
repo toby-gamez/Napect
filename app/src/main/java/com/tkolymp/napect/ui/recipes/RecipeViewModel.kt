@@ -35,12 +35,21 @@ class RecipeViewModel(private val repo: RecipeRepository, private val ai: com.tk
     // expose search query as read-only flow for UI
     val searchQuery = _searchQuery.asStateFlow()
 
+    // expose an optional error message for UI reporting
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     fun createRecipe(recipe: Recipe, onComplete: (Long) -> Unit = {}) {
         viewModelScope.launch {
-            val category = if (recipe.category == Category.UNKNOWN) RecipeClassifier.classify(recipe.title, recipe.ingredients.map { it.name }, recipe.steps.map { it.instruction }) else recipe.category
-            val summary = recipe.summary ?: ai?.generateSummary(recipe.title, recipe.ingredients, recipe.steps)
-            val id = repo.createRecipe(recipe.copy(category = category, summary = summary))
-            onComplete(id)
+            try {
+                val category = if (recipe.category == Category.UNKNOWN) RecipeClassifier.classify(recipe.title, recipe.ingredients.map { it.name }, recipe.steps.map { it.instruction }) else recipe.category
+                val summary = recipe.summary ?: ai?.generateSummary(recipe.title, recipe.ingredients, recipe.steps)
+                val id = repo.createRecipe(recipe.copy(category = category, summary = summary))
+                _error.value = null
+                onComplete(id)
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Unknown error"
+            }
         }
     }
 
@@ -48,5 +57,31 @@ class RecipeViewModel(private val repo: RecipeRepository, private val ai: com.tk
 
     fun toggleFavorite(id: Long, value: Boolean) {
         viewModelScope.launch { repo.toggleFavorite(id, value) }
+    }
+
+    fun updateRecipe(recipe: Recipe, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val category = if (recipe.category == Category.UNKNOWN) RecipeClassifier.classify(recipe.title, recipe.ingredients.map { it.name }, recipe.steps.map { it.instruction }) else recipe.category
+                val summary = recipe.summary ?: ai?.generateSummary(recipe.title, recipe.ingredients, recipe.steps)
+                repo.updateRecipe(recipe.copy(category = category, summary = summary))
+                _error.value = null
+                onComplete()
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Unknown error"
+            }
+        }
+    }
+
+    fun deleteRecipe(id: Long, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                repo.deleteRecipe(id)
+                _error.value = null
+                onComplete()
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Unknown error"
+            }
+        }
     }
 }

@@ -27,22 +27,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import com.tkolymp.napect.domain.model.Recipe
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.dp
-
+// single dp import above
 @Composable
 fun RecipeDetailScreen(
     recipe: Recipe,
     onClose: (() -> Unit)? = null,
     onToggleFavorite: ((Long, Boolean) -> Unit)? = null,
+    onEdit: ((Long) -> Unit)? = null,
+    onDelete: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var servings by remember { mutableStateOf(recipe.servingsBase.coerceAtLeast(1)) }
+
+    var showConfirmDelete by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         recipe.photo?.let { bytes ->
@@ -60,6 +65,15 @@ fun RecipeDetailScreen(
                     // show icon without click when callback not provided
                     Icon(imageVector = if (recipe.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = "Favorite")
                 }
+
+                if (onEdit != null) {
+                    Button(onClick = { onEdit(recipe.id) }) { Text("Edit") }
+                }
+
+                if (onDelete != null) {
+                    Button(onClick = { showConfirmDelete = true }) { Text("Delete") }
+                }
+
                 // show close only when the caller provided an onClose handler
                 if (onClose != null) {
                     IconButton(onClick = onClose) { Text("Close") }
@@ -92,5 +106,16 @@ fun RecipeDetailScreen(
                 Text("${step.stepNumber}. ${step.instruction}", modifier = Modifier.padding(top = 6.dp))
             }
         }
+    }
+
+    if (showConfirmDelete) {
+        AlertDialog(onDismissRequest = { showConfirmDelete = false }, confirmButton = {
+            TextButton(onClick = {
+                showConfirmDelete = false
+                onDelete?.invoke(recipe.id)
+            }) { Text("Delete") }
+        }, dismissButton = {
+            TextButton(onClick = { showConfirmDelete = false }) { Text("Cancel") }
+        }, title = { Text("Delete recipe?") }, text = { Text("This will permanently delete the recipe.") })
     }
 }

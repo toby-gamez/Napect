@@ -8,9 +8,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.Column
+// Column already imported above
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+// fillMaxWidth already imported above
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
@@ -46,22 +46,34 @@ import com.tkolymp.napect.domain.model.Step
 
 // Stateful holder for UI ingredient inputs to avoid list-replacement issues
 private class IngredientInputState(
-    val amount: MutableState<String> = mutableStateOf("")
-    , val unit: MutableState<String> = mutableStateOf("")
-    , val name: MutableState<String> = mutableStateOf("")
-)
+    initialAmount: String = "",
+    initialUnit: String = "",
+    initialName: String = ""
+) {
+    val amount: MutableState<String> = mutableStateOf(initialAmount)
+    val unit: MutableState<String> = mutableStateOf(initialUnit)
+    val name: MutableState<String> = mutableStateOf(initialName)
+}
 
 @Composable
-fun AddRecipeScreen(onSave: (Recipe) -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier) {
-    var title by remember { mutableStateOf("") }
-    var summary by remember { mutableStateOf("") }
+fun AddRecipeScreen(onSave: (Recipe) -> Unit, onCancel: () -> Unit, modifier: Modifier = Modifier, initialRecipe: Recipe? = null) {
+    val init = initialRecipe
+    var title by remember(init) { mutableStateOf(init?.title ?: "") }
+    var summary by remember(init) { mutableStateOf(init?.summary ?: "") }
+    var servingsBase by remember(init) { mutableStateOf(init?.servingsBase ?: 4) }
 
-    val ingredients = remember { mutableStateListOf<IngredientInputState>() }
-    val steps = remember { mutableStateListOf<String>() }
+    val ingredients = remember(init) { mutableStateListOf<IngredientInputState>().apply {
+        init?.ingredients?.forEach { add(IngredientInputState(it.amount.toString(), it.unit ?: "", it.name)) }
+        if (isEmpty()) add(IngredientInputState())
+    } }
+    val steps = remember(init) { mutableStateListOf<String>().apply {
+        init?.steps?.forEach { add(it.instruction) }
+        if (isEmpty()) add("")
+    } }
 
     // image bytes picked from gallery (optional)
     val context = LocalContext.current
-    var photoBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var photoBytes by remember(init) { mutableStateOf<ByteArray?>(init?.photo) }
 
     val pickLauncher = rememberLauncherForActivityResult(GetContent()) { uri ->
         if (uri != null) {
@@ -76,9 +88,7 @@ fun AddRecipeScreen(onSave: (Recipe) -> Unit, onCancel: () -> Unit, modifier: Mo
         }
     }
 
-    // start with one empty row for convenience
-    if (ingredients.isEmpty()) ingredients.add(IngredientInputState())
-    if (steps.isEmpty()) steps.add("")
+    // lists initialized above
 
     Column(modifier = modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         // Photo picker
@@ -97,6 +107,13 @@ fun AddRecipeScreen(onSave: (Recipe) -> Unit, onCancel: () -> Unit, modifier: Mo
             label = { Text("Summary") },
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
         )
+
+        Spacer(modifier = Modifier.size(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Button(onClick = { if (servingsBase > 1) servingsBase-- }) { Text("-") }
+            Text("  Base servings: $servingsBase  ", modifier = Modifier.padding(horizontal = 8.dp))
+            Button(onClick = { servingsBase++ }) { Text("+") }
+        }
 
         Spacer(modifier = Modifier.size(8.dp))
         Text("Ingredients")
@@ -172,11 +189,13 @@ fun AddRecipeScreen(onSave: (Recipe) -> Unit, onCancel: () -> Unit, modifier: Mo
 
                     onSave(
                         Recipe(
+                            id = init?.id ?: 0L,
                             title = title.trim(),
                             summary = summary.ifBlank { null },
                             ingredients = ingDomain,
                             steps = stepsDomain,
-                            photo = photoBytes
+                            photo = photoBytes,
+                            servingsBase = servingsBase
                         )
                     )
                 }

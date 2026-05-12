@@ -6,6 +6,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.ui.Modifier
 import com.tkolymp.napect.ui.theme.NapectTheme
+import com.tkolymp.napect.data.local.SettingsRepository
+import com.tkolymp.napect.data.local.ThemeMode
+import com.tkolymp.napect.data.local.UserPreferences
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.lifecycle.ViewModelProvider
 import com.tkolymp.napect.ui.recipes.RecipeViewModel
 import com.tkolymp.napect.ui.recipes.RecipeViewModelFactory
@@ -43,7 +49,16 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            NapectTheme {
+            val settingsRepo = SettingsRepository(applicationContext)
+            val prefs by settingsRepo.prefsFlow.collectAsState(initial = UserPreferences())
+            val dark = when (prefs.themeMode) {
+                ThemeMode.AUTO -> isSystemInDarkTheme()
+                ThemeMode.DARK -> true
+                ThemeMode.LIGHT -> false
+                else -> isSystemInDarkTheme()
+            }
+
+            NapectTheme(darkTheme = dark) {
                 NapectApp(vm, importVm, sharedUrl)
             }
         }

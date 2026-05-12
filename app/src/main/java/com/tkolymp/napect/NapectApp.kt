@@ -29,7 +29,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
+// (single getValue import above)
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -56,7 +56,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.with
+import androidx.compose.runtime.remember
 import com.tkolymp.napect.ui.recipes.UrlImportScreen
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
@@ -65,6 +65,8 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
     // selected bottom nav destination (keeps the bottom bar highlighted)
     var selectedDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var showAdd by rememberSaveable { mutableStateOf(false) }
+    // category selection is kept in-memory only (no need to save across process death here)
+    var selectedCategory by remember { mutableStateOf<com.tkolymp.napect.domain.model.Category?>(null) }
 
     // BackHandler integrates with the native OnBackPressedDispatcher so the system back
     // gesture (edge-swipe) and hardware back button are handled here.
@@ -140,18 +142,27 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
             NavHost(navController = navController, startDestination = AppDestinations.HOME.name, modifier = Modifier.padding(innerPadding)) {
                 composable(AppDestinations.HOME.name) {
                     val baseList = items
-                    val filtered = if (vm.searchQuery.value.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
+                    val searchFiltered = if (vm.searchQuery.value.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
+                    val categoryFiltered = selectedCategory?.let { c -> searchFiltered.filter { it.category == c } } ?: searchFiltered
                     Column(modifier = Modifier.fillMaxWidth()) {
+                        // Debug helper: show list sizes for diagnosis (remove after debugging)
+                        Text(text = "Debug: total=${baseList.size}, search=${searchResults.size}, searchFiltered=${searchFiltered.size}, categoryFiltered=${categoryFiltered.size}, selected=${selectedCategory?.name ?: "All"}", modifier = Modifier.padding(8.dp))
+                        // show any ViewModel error messages
+                        val vmError by vm.error.collectAsState()
+                        if (!vmError.isNullOrBlank()) Text(text = "Error: $vmError", modifier = Modifier.padding(8.dp))
                         OutlinedTextField(value = vm.searchQuery.value, onValueChange = { vm.setSearchQuery(it) }, label = { androidx.compose.material3.Text("Search") }, modifier = Modifier.fillMaxWidth().padding(8.dp))
-                        RecipeListScreen(recipes = filtered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp))
+                        RecipeListScreen(recipes = categoryFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), selectedCategory = selectedCategory, onCategorySelected = { selectedCategory = it }, onDelete = { id -> vm.deleteRecipe(id) })
                     }
                 }
                 composable(AppDestinations.FAVORITES.name) {
                     val baseList = items.filter { it.isFavorite }
-                    val filtered = if (vm.searchQuery.value.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
+                    val searchFiltered = if (vm.searchQuery.value.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
+                    val categoryFiltered = selectedCategory?.let { c -> searchFiltered.filter { it.category == c } } ?: searchFiltered
                     Column(modifier = Modifier.fillMaxWidth()) {
+                        // Debug helper: show list sizes for diagnosis (remove after debugging)
+                        Text(text = "Debug: total=${baseList.size}, search=${searchResults.size}, searchFiltered=${searchFiltered.size}, categoryFiltered=${categoryFiltered.size}, selected=${selectedCategory?.name ?: "All"}", modifier = Modifier.padding(8.dp))
                         OutlinedTextField(value = vm.searchQuery.value, onValueChange = { vm.setSearchQuery(it) }, label = { androidx.compose.material3.Text("Search") }, modifier = Modifier.fillMaxWidth().padding(8.dp))
-                        RecipeListScreen(recipes = filtered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp))
+                        RecipeListScreen(recipes = categoryFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), selectedCategory = selectedCategory, onCategorySelected = { selectedCategory = it }, onDelete = { id -> vm.deleteRecipe(id) })
                     }
                 }
                 composable(AppDestinations.SETTINGS.name) {
@@ -163,11 +174,18 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                 composable("add") {
                     AddRecipeScreen(onSave = { r -> vm.createRecipe(r) { navController.popBackStack() } }, onCancel = { navController.popBackStack() })
                 }
+                composable("recipe/{id}/edit", arguments = listOf(navArgument("id") { type = NavType.LongType })) { backStackEntry ->
+                    val id = backStackEntry.arguments?.getLong("id") ?: 0L
+                    val recipe by vm.getRecipeById(id).collectAsState(initial = null)
+                    recipe?.let {
+                        AddRecipeScreen(initialRecipe = it, onSave = { updated -> vm.updateRecipe(updated) { navController.popBackStack() } }, onCancel = { navController.popBackStack() })
+                    }
+                }
                 composable("recipe/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { backStackEntry ->
                     val id = backStackEntry.arguments?.getLong("id") ?: 0L
                     val recipe by vm.getRecipeById(id).collectAsState(initial = null)
                     recipe?.let {
-                        RecipeDetailScreen(recipe = it, onClose = { navController.popBackStack() }, onToggleFavorite = { idArg, fav -> vm.toggleFavorite(idArg, fav) })
+                        RecipeDetailScreen(recipe = it, onClose = { navController.popBackStack() }, onToggleFavorite = { idArg, fav -> vm.toggleFavorite(idArg, fav) }, onEdit = { rid -> navController.navigate("recipe/$rid/edit") }, onDelete = { rid -> vm.deleteRecipe(rid) { navController.popBackStack() } })
                     }
                 }
             }

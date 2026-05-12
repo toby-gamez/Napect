@@ -66,8 +66,12 @@ dependencies {
     // (Hilt removed for now)
     // Network (URL import)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    // Image decoding (for reading picked images)
-    implementation("com.github.bumptech.glide:glide:4.16.0")
+    // Image decoding (for reading picked images) - removed unused Glide dependency
+    // DataStore Preferences for app settings
+    implementation("androidx.datastore:datastore-preferences:1.1.0")
+    // Firebase BOM and AI SDK (as provided)
+    implementation(platform("com.google.firebase:firebase-bom:34.13.0"))
+    implementation("com.google.firebase:firebase-ai")
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

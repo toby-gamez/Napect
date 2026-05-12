@@ -20,7 +20,10 @@ class DefaultAiClient(private val gemini: GeminiNanoService?) : AiClient {
         // Prefer gemini when available
         try {
             if (gemini != null && gemini.isGeminiAvailable()) {
-                // gemini currently only exposes URL extraction; try to use it if we have an imported payload
+                // Try to use a direct on-device summarization if possible
+                val summary = gemini.summarizeRecipe(title, ingredients.map { it.name }, steps.map { it.instruction })
+                if (!summary.isNullOrBlank()) return summary
+                // gemini currently also exposes URL extraction; try to use it if we have an imported payload
                 if (imported != null) {
                     val res = gemini.extractRecipeFromUrl(imported.sourceUrl ?: "")
                     if (res.isSuccess) return res.getOrThrow().description
