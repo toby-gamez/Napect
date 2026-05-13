@@ -11,7 +11,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -57,11 +56,16 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.remember
-import com.tkolymp.napect.ui.recipes.UrlImportScreen
+// URL import screen removed: import handled inline in AddRecipeScreen
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
-fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlImportViewModel? = null, initialSharedUrl: String? = null) {
+fun NapectApp(
+    vm: RecipeViewModel,
+    importVm: com.tkolymp.napect.ui.recipes.UrlImportViewModel? = null,
+    initialSharedUrl: String? = null,
+    initialSharedImageUri: android.net.Uri? = null
+) {
     // selected bottom nav destination (keeps the bottom bar highlighted)
     var selectedDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var showAdd by rememberSaveable { mutableStateOf(false) }
@@ -122,11 +126,7 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                 }
                 , actions = {
                     // link icon -> open import screen if importVm available
-                    if (importVm != null) {
-                        IconButton(onClick = { navController.navigate("url_import") }) {
-                            Icon(Icons.Filled.Link, contentDescription = "Import URL")
-                        }
-                    }
+                    // Import icon removed — URL import is handled inline in the Add screen
                 }
             )
         }, floatingActionButton = {
@@ -141,9 +141,19 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
             val searchResults by vm.searchResults.collectAsState()
 
             // If the app was opened via share and importVm + initialSharedUrl are provided, navigate to the import screen
-            LaunchedEffect(initialSharedUrl) {
+            LaunchedEffect(initialSharedUrl, initialSharedImageUri) {
+                // If the app was opened via share, directly perform the import using the ViewModel
+                // and navigate to the Add screen where the imported data will be populated.
                 if (!initialSharedUrl.isNullOrBlank() && importVm != null) {
-                    navController.navigate("url_import")
+                    try {
+                        importVm.fetchUrl(initialSharedUrl)
+                    } catch (_: Exception) { }
+                    navController.navigate("add")
+                } else if (initialSharedImageUri != null && importVm != null) {
+                    try {
+                        importVm.importImage(initialSharedImageUri)
+                    } catch (_: Exception) { }
+                    navController.navigate("add")
                 }
             }
 
@@ -184,18 +194,17 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                     enterTransition = { fadeIn(tween(150)) },
                     exitTransition = { fadeOut(tween(150)) }
                 ) {
-                    SettingsScreen()
+                    val allTags by vm.allTags.collectAsState()
+                    SettingsScreen(
+                        allTags = allTags,
+                        onCreateTag = { name, group -> vm.createUserTag(name, group) },
+                        onDeleteTag = { id -> vm.deleteTag(id) },
+                        onRestoreDefaults = { vm.restoreDefaultTags() }
+                    )
                 }
 
                 // Non-tab screens: slide in from the right on navigation, slide out to the right on pop
-                navComposable("url_import",
-                    enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
-                    exitTransition = { slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(300)) + fadeOut(tween(300)) },
-                    popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
-                    popExitTransition = { slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(tween(300)) }
-                ) {
-                    importVm?.let { UrlImportScreen(importVm = it, initialUrl = initialSharedUrl, onSaved = { id -> navController.popBackStack() }, onCancel = { navController.popBackStack() }) }
-                }
+                // URL import handled inline in Add screen; dedicated import screen removed.
 
                 navComposable("add",
                     enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
@@ -212,9 +221,15 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                         availableTags = allTags,
                         suggestedTagIds = suggestedIds,
                         onSuggest = { preview -> vm.suggestTagsForRecipe(preview) },
-                        onCreateUserTag = { name, group -> vm.createUserTag(name, group) }
+                        onCreateUserTag = { name, group -> vm.createUserTag(name, group) },
+                        importVm = importVm
                     )
                 }
+
+                // Camera route replaced by launching the platform camera from AddRecipeScreen using
+                // ActivityResultContracts.TakePicture. The AddRecipeScreen will navigate to an intermediate
+                // temporary-host composable if needed. We remove the composable here since the camera flow
+                // is handled via ActivityResult from the AddRecipeScreen.
 
                 navComposable("recipe/{id}/edit",
                     arguments = listOf(navArgument("id") { type = NavType.LongType }),
@@ -236,7 +251,8 @@ fun NapectApp(vm: RecipeViewModel, importVm: com.tkolymp.napect.ui.recipes.UrlIm
                             availableTags = allTags,
                             suggestedTagIds = suggestedIds,
                             onSuggest = { preview -> vm.suggestTagsForRecipe(preview) },
-                            onCreateUserTag = { name, group -> vm.createUserTag(name, group) }
+                            onCreateUserTag = { name, group -> vm.createUserTag(name, group) },
+                            importVm = importVm
                         )
                     }
                 }

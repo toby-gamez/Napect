@@ -7,14 +7,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -23,9 +29,16 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import com.tkolymp.napect.data.local.SettingsRepository
 import com.tkolymp.napect.data.local.ThemeMode
+import com.tkolymp.napect.domain.model.TagGroup
 
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    allTags: List<com.tkolymp.napect.domain.model.Tag> = emptyList(),
+    onCreateTag: (String, com.tkolymp.napect.domain.model.TagGroup) -> Unit = { _, _ -> },
+    onDeleteTag: (Long) -> Unit = {},
+    onRestoreDefaults: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val repo = SettingsRepository(context)
     val prefs by repo.prefsFlow.collectAsState(initial = com.tkolymp.napect.data.local.UserPreferences())
@@ -46,6 +59,74 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Button(onClick = { scope.launch { repo.setDefaultServings((prefs.defaultServings - 1).coerceAtLeast(1)) } }) { Text("-") }
             Button(onClick = { scope.launch { repo.setDefaultServings(prefs.defaultServings + 1) } }) { Text("+") }
+        }
+
+        Spacer(modifier = Modifier.size(16.dp))
+        Text("Tags", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+        // group tags by group
+        val grouped = allTags.groupBy { it.group }
+        grouped.forEach { (group, tags) ->
+            Text(group.name, modifier = Modifier.padding(top = 8.dp))
+            Column {
+                var pendingDeleteId by remember { mutableStateOf<Long?>(null) }
+                tags.forEach { t ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxSize().padding(vertical = 4.dp)) {
+                        // show name and AI badge when applicable
+                        if (t.isAiGenerated) {
+                            androidx.compose.material3.AssistChip(onClick = {}, label = { Text(t.name) }, leadingIcon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.AutoAwesome, contentDescription = "AI") })
+                        } else {
+                            androidx.compose.material3.AssistChip(onClick = {}, label = { Text(t.name) })
+                        }
+                        Spacer(modifier = Modifier.size(8.dp))
+                        Button(onClick = { pendingDeleteId = t.id }) { Text("Delete") }
+                    }
+                }
+
+                // Confirmation dialog for deleting a tag
+                val deleteId = pendingDeleteId
+                if (deleteId != null) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { pendingDeleteId = null },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(onClick = {
+                                pendingDeleteId = null
+                                onDeleteTag(deleteId)
+                            }) { Text("Delete") }
+                        },
+                        dismissButton = { androidx.compose.material3.TextButton(onClick = { pendingDeleteId = null }) { Text("Cancel") } },
+                        title = { Text("Delete tag?") },
+                        text = { Text("This will remove the tag from all recipes. Are you sure?") }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.size(12.dp))
+        // Create tag form
+        var newTagName by remember { mutableStateOf("") }
+        var expanded by remember { mutableStateOf(false) }
+        var selectedGroup by remember { mutableStateOf(com.tkolymp.napect.domain.model.TagGroup.OTHER) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(value = newTagName, onValueChange = { newTagName = it }, label = { Text("New tag name") }, modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = { expanded = true }) { Text(selectedGroup.name) }
+            androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                TagGroup.values().forEach { g ->
+                    androidx.compose.material3.DropdownMenuItem(text = { Text(g.name) }, onClick = { selectedGroup = g; expanded = false })
+                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = {
+                if (newTagName.isNotBlank()) {
+                    onCreateTag(newTagName.trim(), selectedGroup)
+                    newTagName = ""
+                }
+            }) { Text("Create tag") }
+        }
+
+        Spacer(modifier = Modifier.size(12.dp))
+        Button(onClick = { onRestoreDefaults() }, modifier = Modifier.padding(top = 8.dp)) {
+            Text("Restore default tags")
         }
     }
 }

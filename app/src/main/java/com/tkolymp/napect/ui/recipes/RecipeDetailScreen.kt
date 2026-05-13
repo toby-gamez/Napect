@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.AssistChip
 // single dp import above
 @Composable
@@ -99,7 +100,11 @@ fun RecipeDetailScreen(
             Spacer(modifier = Modifier.size(8.dp))
             FlowRow(modifier = Modifier.fillMaxWidth()) {
                 recipe.tags.forEach { t ->
-                    AssistChip(onClick = {}, label = { Text(t.name) }, modifier = Modifier.padding(end = 8.dp))
+                    if (t.isAiGenerated) {
+                        AssistChip(onClick = {}, label = { Text(t.name) }, leadingIcon = { Icon(androidx.compose.material.icons.Icons.Filled.AutoAwesome, contentDescription = "AI") }, modifier = Modifier.padding(end = 8.dp))
+                    } else {
+                        AssistChip(onClick = {}, label = { Text(t.name) }, modifier = Modifier.padding(end = 8.dp))
+                    }
                 }
             }
         }

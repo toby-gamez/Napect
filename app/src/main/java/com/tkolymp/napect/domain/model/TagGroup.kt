@@ -7,5 +7,6 @@ enum class TagGroup {
     CUISINE,
     METHOD,
     MEAL,
+    CATEGORY,
     OTHER
 }

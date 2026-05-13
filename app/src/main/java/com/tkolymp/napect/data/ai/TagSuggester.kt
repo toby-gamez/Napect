@@ -6,49 +6,73 @@ import com.tkolymp.napect.domain.model.TagGroup
  * Simple keyword-based tag suggester. Operates offline.
  */
 object TagSuggester {
-    private val KEYWORD_MAP: Map<String, Pair<String, TagGroup>> = mapOf(
+    // Use regex-based matching for safer, word-boundary suggestions. Each pattern
+    // can map to multiple tag suggestions (e.g. pasta -> Pasta, Italian).
+    private val KEYWORD_MAP: List<Pair<Regex, List<Pair<String, TagGroup>>>> = listOf(
         // TIME
-        "15 min" to ("15 min" to TagGroup.TIME),
-        "15min" to ("15 min" to TagGroup.TIME),
-        "30 min" to ("30 min" to TagGroup.TIME),
-        "30min" to ("30 min" to TagGroup.TIME),
-        "1 h" to ("1 h" to TagGroup.TIME),
-        "1h" to ("1 h" to TagGroup.TIME),
-        "hour" to ("1 h" to TagGroup.TIME),
+        Regex("\\b15\\s?min\\b") to listOf("15 min" to TagGroup.TIME),
+        Regex("\\b30\\s?min\\b") to listOf("30 min" to TagGroup.TIME),
+        Regex("\\b1\\s?h(our)?s?\\b") to listOf("1 h" to TagGroup.TIME),
+        Regex("\\b2\\s?h\\+?\\b") to listOf("2 h+" to TagGroup.TIME),
 
         // DIET
-        "vegan" to ("Vegan" to TagGroup.DIET),
-        "vegetarian" to ("Vegetarian" to TagGroup.DIET),
-        "gluten" to ("Gluten-Free" to TagGroup.DIET),
-        "gluten-free" to ("Gluten-Free" to TagGroup.DIET),
-        "dairy" to ("Dairy-Free" to TagGroup.DIET),
+        Regex("\\bvegan\\b") to listOf("Vegan" to TagGroup.DIET),
+        Regex("\\bvegetarian\\b") to listOf("Vegetarian" to TagGroup.DIET),
+        Regex("\\bgluten(-|\\s)?free\\b|\\bgluten\\b") to listOf("Gluten-Free" to TagGroup.DIET),
+        Regex("\\bdairy(-|\\s)?free\\b|\\bdairy\\b") to listOf("Dairy-Free" to TagGroup.DIET),
 
         // METHOD
-        "fry" to ("Fried" to TagGroup.METHOD),
-        "fried" to ("Fried" to TagGroup.METHOD),
-        "bake" to ("Baked" to TagGroup.METHOD),
-        "baked" to ("Baked" to TagGroup.METHOD),
-        "grill" to ("Grilled" to TagGroup.METHOD),
+        Regex("\\bfry\\b|\\bfried\\b") to listOf("Fried" to TagGroup.METHOD),
+        Regex("\\bbake\\b|\\bbaked\\b|\\boven\\b") to listOf("Baked" to TagGroup.METHOD),
+        Regex("\\bgrill\\b|\\bgrilled\\b") to listOf("Grilled" to TagGroup.METHOD),
+        Regex("\\bsteam\\b|\\bsteamed\\b") to listOf("Steamed" to TagGroup.METHOD),
+        Regex("\\braw\\b") to listOf("Raw" to TagGroup.METHOD),
 
         // CUISINE
-        "ital" to ("Italian" to TagGroup.CUISINE),
-        "pasta" to ("Italian" to TagGroup.CUISINE),
-        "pizza" to ("Italian" to TagGroup.CUISINE),
-        "soy sauce" to ("Chinese" to TagGroup.CUISINE),
-        "wok" to ("Chinese" to TagGroup.CUISINE),
-        "tofu" to ("Chinese" to TagGroup.CUISINE),
+        Regex("\\bital(ian)?\\b") to listOf("Italian" to TagGroup.CUISINE),
+        Regex("\\bpasta\\b|\\bpizza\\b") to listOf("Italian" to TagGroup.CUISINE),
+        Regex("\\bsoy sauce\\b|\\bwok\\b|\\btofu\\b") to listOf("Chinese" to TagGroup.CUISINE),
 
-        // MEAL
-        "breakfast" to ("Breakfast" to TagGroup.MEAL),
-        "lunch" to ("Lunch" to TagGroup.MEAL),
-        "dinner" to ("Dinner" to TagGroup.MEAL)
+        // CATEGORY / MEAL hints (map to CATEGORY when appropriate). We return multiple
+        // complementary tags for richer suggestions (e.g. dessert -> Dessert, Sweet, Baked)
+        Regex("\\bsoup\\b|\\bbroth\\b") to listOf("Soup" to TagGroup.CATEGORY),
+        Regex("\\bdessert\\b|\\bcake\\b|\\bcookie\\b|\\bpudding\\b|\\bpie\\b") to listOf(
+            "Dessert" to TagGroup.CATEGORY,
+            "Sweet" to TagGroup.OTHER,
+            "Baked" to TagGroup.METHOD,
+            "Baking" to TagGroup.CATEGORY
+        ),
+        Regex("\\bbaking\\b|\\boven\\b") to listOf("Baking" to TagGroup.CATEGORY, "Baked" to TagGroup.METHOD),
+        Regex("\\bbreakfast\\b") to listOf("Breakfast" to TagGroup.CATEGORY),
+        Regex("\\bholiday\\b|\\bchristmas\\b|\\beaster\\b") to listOf("Holiday" to TagGroup.CATEGORY),
+        Regex("\\bquick\\b|\\bfast\\b|\\b30\\s?min\\b|\\b15\\s?min\\b") to listOf("Quick" to TagGroup.CATEGORY, "Quick" to TagGroup.OTHER),
+        // Difficulty
+        Regex("\\beasy\\b") to listOf("Easy" to TagGroup.DIFFICULTY),
+        Regex("\\bmedium\\b") to listOf("Medium" to TagGroup.DIFFICULTY),
+        Regex("\\bhard\\b|\\bdifficult\\b") to listOf("Hard" to TagGroup.DIFFICULTY),
+
+        // COMMON / INGREDIENTS / PROPERTIES
+        Regex("\\bchicken\\b") to listOf("Chicken" to TagGroup.OTHER),
+        Regex("\\bbeef\\b") to listOf("Beef" to TagGroup.OTHER),
+        Regex("\\bpork\\b") to listOf("Pork" to TagGroup.OTHER),
+        Regex("\\bpasta\\b") to listOf("Pasta" to TagGroup.OTHER, "Italian" to TagGroup.CUISINE),
+        Regex("\\bczech\\b|\\bcesky\\b|\\bczechia\\b") to listOf("Czech" to TagGroup.CUISINE),
+        Regex("\\brace\\b") to listOf("Rice" to TagGroup.OTHER),
+        Regex("\\bspicy\\b|\\bchili\\b|\\bchilli\\b") to listOf("Spicy" to TagGroup.OTHER),
+        Regex("\\bquick\\b|\\bfast\\b") to listOf("Quick" to TagGroup.OTHER),
+        Regex("\\bcheap\\b|\\bbudget\\b") to listOf("Budget" to TagGroup.OTHER),
+        Regex("\\bhealthy\\b") to listOf("Healthy" to TagGroup.OTHER),
+        Regex("\\bsweet\\b") to listOf("Sweet" to TagGroup.OTHER),
+        Regex("\\bsavory\\b") to listOf("Savory" to TagGroup.OTHER)
     )
 
     fun suggest(text: String): Set<Pair<String, TagGroup>> {
         val lower = text.lowercase()
         val results = mutableSetOf<Pair<String, TagGroup>>()
-        for ((k, v) in KEYWORD_MAP) {
-            if (lower.contains(k)) results.add(v)
+        for ((regex, vs) in KEYWORD_MAP) {
+            if (regex.containsMatchIn(lower)) {
+                for (v in vs) results.add(v)
+            }
         }
         return results
     }

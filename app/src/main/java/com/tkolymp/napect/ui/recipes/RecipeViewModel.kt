@@ -81,7 +81,19 @@ class RecipeViewModel(private val repo: RecipeRepository, private val ai: com.tk
             try {
                 val category = if (recipe.category == Category.UNKNOWN) RecipeClassifier.classify(recipe.title, recipe.ingredients.map { it.name }, recipe.steps.map { it.instruction }) else recipe.category
                 val summary = recipe.summary ?: ai?.generateSummary(recipe.title, recipe.ingredients, recipe.steps)
-                val id = repo.saveRecipeWithTags(recipe.copy(category = category, summary = summary), tagIds)
+                // If no tag ids provided, attempt to auto-suggest tags using the repository AI suggester.
+                val finalTagIds = if (tagIds.isNotEmpty()) {
+                    tagIds
+                } else {
+                    try {
+                        val suggestion = repo.suggestTagsForRecipe(recipe)
+                        (suggestion.confirmed + suggestion.newlyCreated).map { it.id }
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                }
+
+                val id = repo.saveRecipeWithTags(recipe.copy(category = category, summary = summary), finalTagIds)
                 _error.value = null
                 onComplete(id)
             } catch (e: Exception) {
@@ -97,9 +109,18 @@ class RecipeViewModel(private val repo: RecipeRepository, private val ai: com.tk
                 val summary = recipe.summary ?: ai?.generateSummary(recipe.title, recipe.ingredients, recipe.steps)
                 // update recipe core
                 repo.updateRecipe(recipe.copy(category = category, summary = summary))
-                // set tags
-                // repo.saveRecipeWithTags expects to insert when id==0, so use dao method indirectly by calling repo.saveRecipeWithTags
-                repo.saveRecipeWithTags(recipe, tagIds)
+                // If no tag ids provided, attempt to auto-suggest tags and apply them
+                val finalTagIds = if (tagIds.isNotEmpty()) {
+                    tagIds
+                } else {
+                    try {
+                        val suggestion = repo.suggestTagsForRecipe(recipe)
+                        (suggestion.confirmed + suggestion.newlyCreated).map { it.id }
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                }
+                repo.saveRecipeWithTags(recipe, finalTagIds)
                 _error.value = null
                 onComplete()
             } catch (e: Exception) {
@@ -145,6 +166,29 @@ class RecipeViewModel(private val repo: RecipeRepository, private val ai: com.tk
                 onComplete()
             } catch (e: Exception) {
                 _error.value = e.message ?: "Unknown error"
+            }
+        }
+    }
+
+    fun deleteTag(id: Long) {
+        viewModelScope.launch {
+            try {
+                repo.deleteTag(id)
+                _error.value = null
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Failed to delete tag"
+            }
+        }
+    }
+
+    fun restoreDefaultTags() {
+        viewModelScope.launch {
+            try {
+                val inserted = repo.ensureDefaultTags()
+                _error.value = if (inserted > 0) "Restored $inserted default tags" else "Default tags already present"
+                // optional: could expose a success state if needed
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Failed to restore default tags"
             }
         }
     }

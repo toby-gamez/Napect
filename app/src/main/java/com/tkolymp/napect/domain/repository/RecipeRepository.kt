@@ -17,4 +17,6 @@ interface RecipeRepository {
     suspend fun createUserTag(name: String, group: com.tkolymp.napect.domain.model.TagGroup): com.tkolymp.napect.domain.model.Tag
     suspend fun suggestTagsForRecipe(recipe: Recipe): com.tkolymp.napect.data.ai.TagSuggestion
     suspend fun saveRecipeWithTags(recipe: Recipe, tagIds: List<Long>): Long
+    suspend fun deleteTag(id: Long)
+    suspend fun ensureDefaultTags(): Int
 }

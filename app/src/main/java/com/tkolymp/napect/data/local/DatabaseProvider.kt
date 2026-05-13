@@ -12,6 +12,9 @@ object DatabaseProvider {
 
     fun getDatabase(context: Context): NapectDatabase {
         return INSTANCE ?: synchronized(this) {
+            // Use centralized default seed tags list
+            val seedInserts = com.tkolymp.napect.data.local.DEFAULT_TAGS.map { (name, group) -> Pair(name, group.name) }
+
             // Provide an explicit migration from v2 -> v3 that adds tags tables.
             val migration2to3 = object : Migration(2, 3) {
                 override fun migrate(database: SupportSQLiteDatabase) {
@@ -27,6 +30,8 @@ object DatabaseProvider {
                         )
                         """.trimIndent()
                     )
+                    // Ensure a case-insensitive unique index on tag names so duplicate tags are avoided
+                    database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_name ON tags(name COLLATE NOCASE)")
 
                     // Create junction table recipe_tags WITHOUT explicit foreign key constraints so it
                     // matches the Room-generated schema for the simple cross-ref entity.
@@ -40,52 +45,10 @@ object DatabaseProvider {
                         """.trimIndent()
                     )
                     // Insert seed tags during migration so upgraded databases also get defaults
-                    val inserts = listOf(
-                        // DIFFICULTY
-                        Pair("Easy", "DIFFICULTY"),
-                        Pair("Medium", "DIFFICULTY"),
-                        Pair("Hard", "DIFFICULTY"),
-                        // TIME
-                        Pair("15 min", "TIME"),
-                        Pair("30 min", "TIME"),
-                        Pair("1 h", "TIME"),
-                        Pair("2 h+", "TIME"),
-                        // DIET
-                        Pair("Vegan", "DIET"),
-                        Pair("Vegetarian", "DIET"),
-                        Pair("Gluten-Free", "DIET"),
-                        Pair("Dairy-Free", "DIET"),
-                        // CUISINE
-                        Pair("Italian", "CUISINE"),
-                        Pair("Chinese", "CUISINE"),
-                        Pair("Mexican", "CUISINE"),
-                        Pair("Indian", "CUISINE"),
-                        Pair("French", "CUISINE"),
-                        Pair("Czech", "CUISINE"),
-                        Pair("American", "CUISINE"),
-                        Pair("Japanese", "CUISINE"),
-                        // METHOD
-                        Pair("Fried", "METHOD"),
-                        Pair("Baked", "METHOD"),
-                        Pair("Grilled", "METHOD"),
-                        Pair("Steamed", "METHOD"),
-                        Pair("Raw", "METHOD"),
-                        // MEAL
-                        Pair("Breakfast", "MEAL"),
-                        Pair("Lunch", "MEAL"),
-                        Pair("Dinner", "MEAL"),
-                        Pair("Snack", "MEAL"),
-                        // OTHER
-                        Pair("Kid-Friendly", "OTHER"),
-                        Pair("One Pot", "OTHER"),
-                        Pair("Meal Prep", "OTHER"),
-                        Pair("Budget", "OTHER"),
-                        Pair("Holiday", "OTHER")
-                    )
                     database.beginTransaction()
                     try {
                         val stmt = database.compileStatement("INSERT OR IGNORE INTO tags(name, group_name, is_ai_generated, is_user_created) VALUES (?, ?, 0, 0)")
-                        for ((name, group) in inserts) {
+                        for ((name, group) in seedInserts) {
                             stmt.bindString(1, name)
                             stmt.bindString(2, group)
                             stmt.executeInsert()
@@ -102,53 +65,12 @@ object DatabaseProvider {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
                     // Insert seed tags
-                    val inserts = listOf(
-                        // DIFFICULTY
-                        Pair("Easy", "DIFFICULTY"),
-                        Pair("Medium", "DIFFICULTY"),
-                        Pair("Hard", "DIFFICULTY"),
-                        // TIME
-                        Pair("15 min", "TIME"),
-                        Pair("30 min", "TIME"),
-                        Pair("1 h", "TIME"),
-                        Pair("2 h+", "TIME"),
-                        // DIET
-                        Pair("Vegan", "DIET"),
-                        Pair("Vegetarian", "DIET"),
-                        Pair("Gluten-Free", "DIET"),
-                        Pair("Dairy-Free", "DIET"),
-                        // CUISINE
-                        Pair("Italian", "CUISINE"),
-                        Pair("Chinese", "CUISINE"),
-                        Pair("Mexican", "CUISINE"),
-                        Pair("Indian", "CUISINE"),
-                        Pair("French", "CUISINE"),
-                        Pair("Czech", "CUISINE"),
-                        Pair("American", "CUISINE"),
-                        Pair("Japanese", "CUISINE"),
-                        // METHOD
-                        Pair("Fried", "METHOD"),
-                        Pair("Baked", "METHOD"),
-                        Pair("Grilled", "METHOD"),
-                        Pair("Steamed", "METHOD"),
-                        Pair("Raw", "METHOD"),
-                        // MEAL
-                        Pair("Breakfast", "MEAL"),
-                        Pair("Lunch", "MEAL"),
-                        Pair("Dinner", "MEAL"),
-                        Pair("Snack", "MEAL"),
-                        // OTHER
-                        Pair("Kid-Friendly", "OTHER"),
-                        Pair("One Pot", "OTHER"),
-                        Pair("Meal Prep", "OTHER"),
-                        Pair("Budget", "OTHER"),
-                        Pair("Holiday", "OTHER")
-                    )
-
+                    // Ensure unique index on name for fresh DB so seed inserts won't duplicate
+                    db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_name ON tags(name COLLATE NOCASE)")
                     db.beginTransaction()
                     try {
                         val stmt = db.compileStatement("INSERT OR IGNORE INTO tags(name, group_name, is_ai_generated, is_user_created) VALUES (?, ?, 0, 0)")
-                        for ((name, group) in inserts) {
+                        for ((name, group) in seedInserts) {
                             stmt.bindString(1, name)
                             stmt.bindString(2, group)
                             stmt.executeInsert()

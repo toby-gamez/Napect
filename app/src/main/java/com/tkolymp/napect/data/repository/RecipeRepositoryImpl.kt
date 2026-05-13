@@ -6,6 +6,7 @@ import com.tkolymp.napect.data.ai.TagSuggester
 import com.tkolymp.napect.data.ai.TagSuggestion
 import com.tkolymp.napect.data.local.entity.TagEntity
 import com.tkolymp.napect.domain.model.TagGroup
+import com.tkolymp.napect.domain.model.Category
 import com.tkolymp.napect.data.mapper.toDomain
 import com.tkolymp.napect.data.mapper.toEntity
 import com.tkolymp.napect.domain.model.Recipe
@@ -49,10 +50,12 @@ class RecipeRepositoryImpl(
     override fun getAllTags() = tagDao.getAllTags().map { list -> list.map { it.toDomain() } }
 
     override suspend fun createUserTag(name: String, group: TagGroup): com.tkolymp.napect.domain.model.Tag {
-        val entity = TagEntity(name = name, group = group.name, isAiGenerated = 0, isUserCreated = 1)
+        // Normalize name: trim and Title-case to reduce duplicates
+        val canonical = name.trim().replace(Regex("\\s+"), " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        val entity = TagEntity(name = canonical, group = group.name, isAiGenerated = 0, isUserCreated = 1)
         val id = tagDao.insertTag(entity)
-        // if insert ignored (existing), fetch it
-        val final = if (id <= 0) tagDao.getTagByName(name)!! else entity.copy(id = id)
+        // if insert ignored (existing), fetch it (case-insensitive lookup)
+        val final = if (id <= 0) tagDao.getTagByName(canonical)!! else entity.copy(id = id)
         return final.toDomain()
     }
 
@@ -62,25 +65,71 @@ class RecipeRepositoryImpl(
         val confirmed = mutableListOf<com.tkolymp.napect.domain.model.Tag>()
         val created = mutableListOf<com.tkolymp.napect.domain.model.Tag>()
         for ((name, group) in suggestions) {
-            val existing = tagDao.getTagByName(name)
+            // Normalize suggestion name to canonical capitalization before lookup/insert
+            val canonical = name.trim().replace(Regex("\\s+"), " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+            val existing = tagDao.getTagByName(canonical)
             if (existing != null) {
                 confirmed.add(existing.toDomain())
             } else {
-                val newEntity = TagEntity(name = name, group = group.name, isAiGenerated = 1, isUserCreated = 0)
+                val newEntity = TagEntity(name = canonical, group = group.name, isAiGenerated = 1, isUserCreated = 0)
                 val newId = tagDao.insertTag(newEntity)
-                val final = if (newId <= 0) tagDao.getTagByName(name)!! else newEntity.copy(id = newId)
+                val final = if (newId <= 0) tagDao.getTagByName(canonical)!! else newEntity.copy(id = newId)
                 created.add(final.toDomain())
             }
         }
         return TagSuggestion(confirmed = confirmed, newlyCreated = created)
     }
 
+    override suspend fun deleteTag(id: Long) {
+        // Remove cross references first, then delete the tag row
+        tagDao.deleteRecipeTagsByTagId(id)
+        tagDao.deleteTagById(id)
+    }
+
+    override suspend fun ensureDefaultTags(): Int {
+        // Insert missing default tags from centralized list. Return number of inserted tags.
+        var inserted = 0
+        for ((name, group) in com.tkolymp.napect.data.local.DEFAULT_TAGS) {
+            // use canonical capitalization
+            val canonical = name.trim().replace(Regex("\\s+"), " ").replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+            val entity = TagEntity(name = canonical, group = group.name, isAiGenerated = 0, isUserCreated = 0)
+            val id = tagDao.insertTag(entity)
+            if (id > 0) inserted++
+        }
+        return inserted
+    }
+
     override suspend fun saveRecipeWithTags(recipe: Recipe, tagIds: List<Long>): Long {
-        val id = if (recipe.id == 0L) {
-            dao.insertRecipeWithDetails(recipe.toEntity(), recipe.ingredients.map { it.toEntity() }, recipe.steps.map { it.toEntity() })
+        // Derive category from tags when possible. Priority:
+        // 1) Tag with TagGroup.CATEGORY
+        // 2) Any tag whose name maps to Category enum
+        // 3) Any DIET-group tag -> Category.DIET
+        // 4) Fallback to recipe.category
+        val derivedCategory = if (tagIds.isNotEmpty()) {
+            val tagEntities = tagDao.getTagsByIds(tagIds)
+            // first try explicit CATEGORY-tag
+            val catTag = tagEntities.firstOrNull { it.group == TagGroup.CATEGORY.name }
+            if (catTag != null) {
+                val normalized = catTag.name.trim().replace(Regex("\\s+"), "_").uppercase()
+                try { Category.valueOf(normalized) } catch (e: Exception) { recipe.category }
+            } else {
+                // try mapping any tag name directly to Category
+                val byName = tagEntities.mapNotNull { t ->
+                    val norm = t.name.trim().replace(Regex("\\s+"), "_").uppercase()
+                    try { Category.valueOf(norm) } catch (_: Exception) { null }
+                }.firstOrNull()
+                if (byName != null) byName
+                else if (tagEntities.any { it.group == TagGroup.DIET.name }) Category.DIET
+                else recipe.category
+            }
+        } else recipe.category
+
+        val toSave = recipe.copy(category = derivedCategory)
+        val id = if (toSave.id == 0L) {
+            dao.insertRecipeWithDetails(toSave.toEntity(), toSave.ingredients.map { it.toEntity() }, toSave.steps.map { it.toEntity() })
         } else {
-            dao.updateRecipe(recipe.toEntity())
-            recipe.id
+            dao.updateRecipe(toSave.toEntity())
+            toSave.id
         }
         dao.setRecipeTags(id, tagIds)
         return id

@@ -24,7 +24,13 @@ import androidx.activity.result.contract.ActivityResultContracts.GetContent
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import android.Manifest
+import android.content.Intent
+import android.provider.MediaStore
+import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -46,12 +52,18 @@ import com.tkolymp.napect.domain.model.Step
 import com.tkolymp.napect.domain.model.Tag
 import com.tkolymp.napect.domain.model.TagGroup
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.AssistChip
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 
 // Stateful holder for UI ingredient inputs to avoid list-replacement issues
 private class IngredientInputState(
@@ -73,7 +85,9 @@ fun AddRecipeScreen(
     availableTags: List<Tag> = emptyList(),
     suggestedTagIds: Set<Long> = emptySet(),
     onSuggest: (Recipe) -> Unit = {},
-    onCreateUserTag: (String, TagGroup) -> Unit = { _, _ -> }
+    onCreateUserTag: (String, TagGroup) -> Unit = { _, _ -> },
+    onOpenCamera: () -> Unit = {},
+    importVm: UrlImportViewModel? = null
 ) {
     val init = initialRecipe
     var title by remember(init) { mutableStateOf(init?.title ?: "") }
@@ -96,14 +110,150 @@ fun AddRecipeScreen(
     val pickLauncher = rememberLauncherForActivityResult(GetContent()) { uri ->
         if (uri != null) {
             try {
+                // set preview bytes
                 context.contentResolver.openInputStream(uri)?.use { ins ->
                     val baos = ByteArrayOutputStream()
                     ins.copyTo(baos)
                     photoBytes = baos.toByteArray()
                 }
-            } catch (_: Exception) {
+                // trigger OCR import if ViewModel provided
+                importVm?.importImage(uri)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to read image: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    var currentCameraUri by remember { mutableStateOf<android.net.Uri?>(null) }
+
+    // Inline URL import UI state (merged into Add screen)
+    var showUrlEntry by remember { mutableStateOf(false) }
+    var urlText by remember { mutableStateOf("") }
+    // final source URL for the recipe (populated from inline entry or import VM results)
+    var sourceUrl by remember { mutableStateOf<String?>(init?.sourceUrl) }
+
+    // Platform camera (TakePicture) flow implemented locally: create a temp file, obtain a FileProvider uri
+    // and launch the built-in camera app. On success read the bytes and set photoBytes.
+    val takePictureLauncher = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.TakePicture()) { success ->
+        if (success) {
+            try {
+                currentCameraUri?.let { uri ->
+                    context.contentResolver.openInputStream(uri)?.use { ins ->
+                        val baos = ByteArrayOutputStream()
+                        ins.copyTo(baos)
+                        photoBytes = baos.toByteArray()
+                    }
+                    // trigger OCR import if ViewModel provided
+                    importVm?.importImage(uri)
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
+    // Observe import VM state (if provided) and populate fields when OCR completes
+    if (importVm != null) {
+        val importState by importVm.state.collectAsState()
+        LaunchedEffect(importState) {
+            when (importState) {
+                is UrlImportState.Success -> {
+                    val data = (importState as UrlImportState.Success).data
+                    if (title.isBlank()) title = data.title
+                    if (!data.description.isNullOrBlank() && summary.isBlank()) summary = data.description.orEmpty()
+                    if (data.ingredients.isNotEmpty()) {
+                        ingredients.clear()
+                        data.ingredients.forEach { raw ->
+                            try {
+                                val parsed = com.tkolymp.napect.data.parse.IngredientParser.parse(raw)
+                                val amtStr = parsed.amount?.let { a ->
+                                    // show integer values without decimal when possible
+                                    if (a == kotlin.math.floor(a)) a.toInt().toString() else a.toString()
+                                } ?: ""
+                                ingredients.add(IngredientInputState(initialAmount = amtStr, initialUnit = parsed.unit ?: "", initialName = parsed.name))
+                            } catch (_: Exception) {
+                                ingredients.add(IngredientInputState(initialName = raw))
+                            }
+                        }
+                    }
+                    if (data.steps.isNotEmpty()) {
+                        steps.clear()
+                        data.steps.forEach { steps.add(it) }
+                    }
+                    // populate the screen's sourceUrl if importer provided one
+                    if (!data.sourceUrl.isNullOrBlank()) sourceUrl = data.sourceUrl
+                    // Build a preview recipe and request suggestions automatically so tags
+                    // appear without requiring the user to press a button.
+                    try {
+                        val ingDomain = ingredients.mapIndexedNotNull { idx, it ->
+                            val amt = it.amount.value.toDoubleOrNull() ?: 0.0
+                            val unit = it.unit.value.ifBlank { null }
+                            val name = it.name.value.trim()
+                            if (name.isBlank()) return@mapIndexedNotNull null
+                            com.tkolymp.napect.domain.model.Ingredient(amount = amt, unit = unit, name = name, sortOrder = idx)
+                        }
+                        val stepsDomain = steps.mapIndexedNotNull { idx, s ->
+                            val instr = s.trim()
+                            if (instr.isBlank()) return@mapIndexedNotNull null
+                            com.tkolymp.napect.domain.model.Step(stepNumber = idx + 1, instruction = instr)
+                        }
+                        val preview = com.tkolymp.napect.domain.model.Recipe(
+                            id = init?.id ?: 0L,
+                            title = data.title,
+                            summary = data.description ?: null,
+                            sourceUrl = data.sourceUrl,
+                            ingredients = ingDomain,
+                            steps = stepsDomain,
+                            photo = null,
+                            servingsBase = 4
+                        )
+                        onSuggest(preview)
+                    } catch (_: Exception) {
+                        // ignore any preview/suggestion failures; suggestions are best-effort
+                    }
+                }
+                is UrlImportState.Error -> {
+                    Toast.makeText(context, "Import failed: ${(importState as UrlImportState.Error).message}", Toast.LENGTH_LONG).show()
+                }
+                else -> {}
+            }
+        }
+    }
+
+    // Auto-suggest tags as the user edits the form. Debounced to avoid spamming the suggester
+    LaunchedEffect(Unit) {
+        snapshotFlow {
+            // Build a preview Recipe from current UI values
+            val ingDomain = ingredients.mapIndexedNotNull { idx, it ->
+                val amt = it.amount.value.toDoubleOrNull() ?: 0.0
+                val unit = it.unit.value.ifBlank { null }
+                val name = it.name.value.trim()
+                if (name.isBlank()) return@mapIndexedNotNull null
+                com.tkolymp.napect.domain.model.Ingredient(amount = amt, unit = unit, name = name, sortOrder = idx)
+            }
+            val stepsDomain = steps.mapIndexedNotNull { idx, s ->
+                val instr = s.trim()
+                if (instr.isBlank()) return@mapIndexedNotNull null
+                com.tkolymp.napect.domain.model.Step(stepNumber = idx + 1, instruction = instr)
+            }
+            com.tkolymp.napect.domain.model.Recipe(
+                id = init?.id ?: 0L,
+                title = title.trim(),
+                summary = summary.ifBlank { null },
+                sourceUrl = sourceUrl,
+                ingredients = ingDomain,
+                steps = stepsDomain,
+                photo = null,
+                servingsBase = servingsBase
+            )
+        }
+            .debounce(700)
+            .collectLatest { preview ->
+                // Avoid suggesting for empty previews
+                if (preview.title.isNotBlank() || preview.ingredients.isNotEmpty() || preview.steps.isNotEmpty()) {
+                    try {
+                        onSuggest(preview)
+                    } catch (_: Exception) { }
+                }
+            }
     }
 
     // lists initialized above
@@ -115,10 +265,112 @@ fun AddRecipeScreen(
             Image(bitmap = bmp.asImageBitmap(), contentDescription = "Selected photo", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
             Button(onClick = { photoBytes = null }, modifier = Modifier.padding(top = 8.dp)) { Text("Remove Photo") }
         } else {
-            Button(onClick = { pickLauncher.launch("image/*") }, modifier = Modifier.fillMaxWidth()) { Text("Pick Photo") }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { pickLauncher.launch("image/*") }, modifier = Modifier.weight(1f)) { Text("Pick Photo") }
+                // Request camera permission at runtime and open platform camera
+                val cameraPermissionLauncher = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+                    if (granted) {
+                        // permission granted — create file and launch camera
+                        try {
+                            val tmpFile = java.io.File.createTempFile("camera_capture_${System.currentTimeMillis()}", ".jpg", context.cacheDir)
+                            tmpFile.deleteOnExit()
+                            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tmpFile)
+                            currentCameraUri = uri
+                            // Grant URI write permission to any camera activity that can handle the intent (extra safety)
+                            try {
+                                val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply { putExtra(MediaStore.EXTRA_OUTPUT, uri) }
+                                val resList = context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+                                for (res in resList) {
+                                    context.grantUriPermission(res.activityInfo.packageName, uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                            } catch (_: Exception) { }
+                            takePictureLauncher.launch(uri)
+                            Toast.makeText(context, "Opening camera…", Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Failed to open camera: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+                        }
+                    } else {
+                        Toast.makeText(context, "Camera permission is required to take photos", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                Button(onClick = {
+                    try {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                            // already have permission — create temp file and launch camera
+                            val tmpFile = java.io.File.createTempFile("camera_capture_${System.currentTimeMillis()}", ".jpg", context.cacheDir)
+                            tmpFile.deleteOnExit()
+                            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tmpFile)
+                            currentCameraUri = uri
+                            // Grant URI permission to camera apps as a fallback
+                            try {
+                                val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply { putExtra(MediaStore.EXTRA_OUTPUT, uri) }
+                                val resList = context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+                                for (res in resList) {
+                                    context.grantUriPermission(res.activityInfo.packageName, uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                            } catch (_: Exception) { }
+                            takePictureLauncher.launch(uri)
+                            Toast.makeText(context, "Opening camera…", Toast.LENGTH_SHORT).show()
+                        } else {
+                            // request permission — launcher will handle launching the camera when granted
+                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Failed to open camera: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+                    }
+                }, modifier = Modifier.weight(1f)) { Text("Open Camera") }
+                // URL import button (only shown if a UrlImportViewModel was provided)
+                if (importVm != null) {
+                    Button(onClick = { showUrlEntry = !showUrlEntry }, modifier = Modifier.weight(1f)) { Text("Import URL") }
+                }
+            }
+            // Inline URL entry shown when the Import URL button is toggled
+            if (showUrlEntry) {
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = urlText, onValueChange = { urlText = it }, label = { Text("URL") }, modifier = Modifier.weight(1f))
+                    Button(onClick = {
+                        if (urlText.isNotBlank()) {
+                            try {
+                                importVm?.fetchUrl(urlText)
+                                showUrlEntry = false
+                                urlText = ""
+                                Toast.makeText(context, "Importing URL…", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Failed to import URL: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+                            }
+                        } else {
+                            Toast.makeText(context, "Please enter a URL", Toast.LENGTH_SHORT).show()
+                        }
+                    }) { Text("Import") }
+                }
+            }
         }
 
-        OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth())
+        Row(modifier = Modifier.fillMaxWidth()) {
+            OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.weight(1f))
+            // voice input: will append parsed text into fields via simple heuristics
+            VoiceInputButton(onResult = { text ->
+                // simple parse: split lines; first line -> title if title blank; lines with digits/units -> ingredients; others -> steps
+                val lines = text.lines().map { it.trim() }.filter { it.isNotBlank() }
+                if (title.isBlank() && lines.isNotEmpty()) title = lines.first()
+                val ingLines = mutableListOf<String>()
+                val stepLines = mutableListOf<String>()
+                for (ln in lines.drop(1)) {
+                    val lower = ln.lowercase()
+                    val looksLikeIngredient = lower.matches(Regex("^[0-9⅛⅜¼½¾⅓⅔].*")) || lower.contains("tsp") || lower.contains("tbsp") || lower.contains("cup") || lower.contains("g") || lower.contains("kg") || lower.contains("ml") || lower.contains("l")
+                    if (looksLikeIngredient) ingLines.add(ln) else stepLines.add(ln)
+                }
+                if (ingLines.isNotEmpty()) {
+                    ingredients.clear()
+                    ingLines.forEach { ingredients.add(IngredientInputState(initialName = it)) }
+                }
+                if (stepLines.isNotEmpty()) {
+                    steps.clear()
+                    stepLines.forEach { steps.add(it) }
+                }
+            })
+        }
         OutlinedTextField(
             value = summary,
             onValueChange = { summary = it },
@@ -180,70 +432,45 @@ fun AddRecipeScreen(
             init?.tags?.forEach { selectedTagIds.add(it.id) }
         }
 
+        // Track whether the user interacted with tag chips. If they did, respect their
+        // explicit selection. If they didn't touch tags at all, apply AI suggestions
+        // automatically on save. When suggestions arrive and the user hasn't touched
+        // tags yet, merge them into the selectedTagIds so they appear pre-selected.
+        val userTouchedTags = remember { mutableStateOf(false) }
+
+        LaunchedEffect(suggestedTagIds) {
+            if (!userTouchedTags.value) {
+                for (id in suggestedTagIds) {
+                    if (!selectedTagIds.contains(id)) selectedTagIds.add(id)
+                }
+            }
+        }
+
         // group tags by group for display
         val grouped = availableTags.groupBy { it.group }
         grouped.forEach { (group, tags) ->
             Text(group.name, modifier = Modifier.padding(top = 8.dp))
             FlowRow(modifier = Modifier.fillMaxWidth()) {
                 for (t in tags) {
-                    val checked = selectedTagIds.contains(t.id) || suggestedTagIds.contains(t.id)
-                    FilterChip(selected = checked, onClick = {
+                    // If the user touched tags, show only their explicit selection.
+                    // Otherwise, preselect AI-suggested tags for convenience.
+                    val checked = if (userTouchedTags.value) selectedTagIds.contains(t.id) else (selectedTagIds.contains(t.id) || suggestedTagIds.contains(t.id))
+                    val onChipClick = {
                         if (selectedTagIds.contains(t.id)) selectedTagIds.remove(t.id) else selectedTagIds.add(t.id)
-                    }, label = { Text(t.name) }, modifier = Modifier.padding(end = 8.dp))
+                        userTouchedTags.value = true
+                    }
+
+                    if (t.isAiGenerated) {
+                        FilterChip(selected = checked, onClick = onChipClick, label = { Text(t.name) }, leadingIcon = { Icon(androidx.compose.material.icons.Icons.Filled.AutoAwesome, contentDescription = "AI") }, modifier = Modifier.padding(end = 8.dp))
+                    } else {
+                        FilterChip(selected = checked, onClick = onChipClick, label = { Text(t.name) }, modifier = Modifier.padding(end = 8.dp))
+                    }
                 }
             }
         }
 
         Spacer(modifier = Modifier.size(8.dp))
-        // Quick suggestion button
-        Button(onClick = {
-            // build a Recipe preview from current fields and request suggestions
-            val ingDomain = ingredients.mapIndexedNotNull { idx, it ->
-                val amt = it.amount.value.toDoubleOrNull() ?: 0.0
-                val unit = it.unit.value.ifBlank { null }
-                val name = it.name.value.trim()
-                if (name.isBlank()) return@mapIndexedNotNull null
-                Ingredient(amount = amt, unit = unit, name = name, sortOrder = idx)
-            }
-            val stepsDomain = steps.mapIndexedNotNull { idx, s ->
-                val instr = s.trim()
-                if (instr.isBlank()) return@mapIndexedNotNull null
-                Step(stepNumber = idx + 1, instruction = instr)
-            }
-            val preview = Recipe(
-                id = init?.id ?: 0L,
-                title = title.trim(),
-                summary = summary.ifBlank { null },
-                ingredients = ingDomain,
-                steps = stepsDomain,
-                photo = photoBytes,
-                servingsBase = servingsBase
-            )
-            onSuggest(preview)
-        }) { Text("Suggest tags") }
-
-        // Create custom tag UI
-        Spacer(modifier = Modifier.size(8.dp))
-        var newTagName by remember { mutableStateOf("") }
-        var expanded by remember { mutableStateOf(false) }
-        var selectedGroup by remember { mutableStateOf(TagGroup.OTHER) }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(value = newTagName, onValueChange = { newTagName = it }, label = { Text("New tag name") }, modifier = Modifier.weight(1f))
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = { expanded = true }) { Text(selectedGroup.name) }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                TagGroup.values().forEach { g ->
-                    DropdownMenuItem(text = { Text(g.name) }, onClick = { selectedGroup = g; expanded = false })
-                }
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = {
-                if (newTagName.isNotBlank()) {
-                    onCreateUserTag(newTagName.trim(), selectedGroup)
-                    newTagName = ""
-                }
-            }) { Text("Create tag") }
-        }
+        // Tag creation moved to Settings screen to keep Add/Edit focused on tagging selection
 
         Spacer(modifier = Modifier.size(12.dp))
         Text("Steps")
@@ -280,17 +507,26 @@ fun AddRecipeScreen(
                         Step(stepNumber = idx + 1, instruction = instr)
                     }
 
+                    // If the user interacted with tag controls or explicitly selected tags,
+                    // use their selection. Otherwise apply AI suggestions automatically.
+                    val finalTagIds = if (userTouchedTags.value || selectedTagIds.isNotEmpty()) {
+                        selectedTagIds.toList()
+                    } else {
+                        suggestedTagIds.toList()
+                    }
+
                     onSave(
                         Recipe(
                             id = init?.id ?: 0L,
                             title = title.trim(),
                             summary = summary.ifBlank { null },
+                            sourceUrl = sourceUrl,
                             ingredients = ingDomain,
                             steps = stepsDomain,
                             photo = photoBytes,
                             servingsBase = servingsBase
                         ),
-                        selectedTagIds.toList()
+                        finalTagIds
                     )
                 }
             }) {

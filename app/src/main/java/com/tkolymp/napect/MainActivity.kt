@@ -1,6 +1,7 @@
 package com.tkolymp.napect
 
 import android.os.Bundle
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -19,9 +20,12 @@ import com.tkolymp.napect.data.network.UrlImportService
 import com.tkolymp.napect.ui.recipes.UrlImportViewModelFactory
 import com.tkolymp.napect.ui.recipes.UrlImportViewModel
 import com.tkolymp.napect.data.local.DatabaseProvider
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.tkolymp.napect.data.repository.RecipeRepositoryImpl
 
 class MainActivity : ComponentActivity() {
+    private lateinit var importVm: com.tkolymp.napect.ui.recipes.UrlImportViewModel
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -29,6 +33,12 @@ class MainActivity : ComponentActivity() {
         // create DB and repository and ViewModel here (manual DI)
         val db = DatabaseProvider.getDatabase(applicationContext)
         val repo = RecipeRepositoryImpl(db.recipeDao(), db.tagDao())
+        // Ensure default tags exist (idempotent) so fresh installs or upgrades get defaults
+        lifecycleScope.launch {
+            try {
+                repo.ensureDefaultTags()
+            } catch (_: Exception) { }
+        }
         // URL import service & ViewModel
         val importService = UrlImportService()
         // AI client: prefer Gemini wrapper when available, fallback to local summarizer
@@ -39,16 +49,26 @@ class MainActivity : ComponentActivity() {
 
         // URL import service & ViewModel
         // Gemini Nano service wrapper (uses fallback when Gemini not available)
-        val importVm: UrlImportViewModel = ViewModelProvider(this, UrlImportViewModelFactory(importService, repo, geminiService, aiClient)).get(UrlImportViewModel::class.java)
+        importVm = ViewModelProvider(this, UrlImportViewModelFactory(importService, repo, geminiService, aiClient)).get(UrlImportViewModel::class.java)
 
-        // detect shared URL/text
-        val sharedUrl: String? = intent?.let { i ->
-            if (i.action == android.content.Intent.ACTION_SEND && i.type == "text/plain") {
-                i.getStringExtra(android.content.Intent.EXTRA_TEXT)
-            } else null
+        // detect shared URL/text or shared image
+        var sharedUrl: String? = null
+        var sharedImageUri: android.net.Uri? = null
+        intent?.let { i ->
+            if (i.action == android.content.Intent.ACTION_SEND) {
+                when (i.type) {
+                    "text/plain" -> sharedUrl = i.getStringExtra(android.content.Intent.EXTRA_TEXT)
+                    else -> if (i.type?.startsWith("image/") == true) {
+                        val uri = i.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)
+                        sharedImageUri = uri
+                    }
+                }
+            }
         }
 
         setContent {
+            // set the app context for ViewModels that need to access resources like content resolver
+            AppContextHolder.context = applicationContext
             val settingsRepo = SettingsRepository(applicationContext)
             val prefs by settingsRepo.prefsFlow.collectAsState(initial = UserPreferences())
             val dark = when (prefs.themeMode) {
@@ -59,7 +79,28 @@ class MainActivity : ComponentActivity() {
             }
 
             NapectTheme(darkTheme = dark) {
-                NapectApp(vm, importVm, sharedUrl)
+                // deliver the initial shared values to the ViewModel before composing the app so the import screen
+                // can act on them. Use receiveShared* APIs so the ViewModel exposes proper state flows.
+                importVm.receiveSharedUrl(sharedUrl)
+                importVm.receiveSharedImageUri(sharedImageUri)
+                NapectApp(vm, importVm, sharedUrl, sharedImageUri)
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // handle runtime share intents (app already running)
+        if (intent.action == Intent.ACTION_SEND) {
+            when (intent.type) {
+                "text/plain" -> {
+                    val sharedUrl = intent.getStringExtra(Intent.EXTRA_TEXT)
+                    importVm.receiveSharedUrl(sharedUrl)
+                }
+                else -> if (intent.type?.startsWith("image/") == true) {
+                    val uri = intent.getParcelableExtra<android.net.Uri>(Intent.EXTRA_STREAM)
+                    importVm.receiveSharedImageUri(uri)
+                }
             }
         }
     }

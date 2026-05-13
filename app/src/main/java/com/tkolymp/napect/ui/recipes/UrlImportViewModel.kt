@@ -15,6 +15,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 sealed interface UrlImportState {
     object Idle : UrlImportState
@@ -32,6 +37,83 @@ class UrlImportViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow<UrlImportState>(UrlImportState.Idle)
     val state: StateFlow<UrlImportState> = _state.asStateFlow()
+    // Incoming shared data flows (used for initial share and onNewIntent runtime shares)
+    private val _incomingSharedImageUri = MutableStateFlow<android.net.Uri?>(null)
+    val incomingSharedImageUri: StateFlow<android.net.Uri?> = _incomingSharedImageUri.asStateFlow()
+
+    private val _incomingSharedUrl = MutableStateFlow<String?>(null)
+    val incomingSharedUrl: StateFlow<String?> = _incomingSharedUrl.asStateFlow()
+
+    // Called by the Activity to deliver a shared image Uri (initial or via onNewIntent)
+    fun receiveSharedImageUri(uri: android.net.Uri?) {
+        _incomingSharedImageUri.value = uri
+    }
+
+    // Called by the Activity to deliver a shared URL/text (initial or via onNewIntent)
+    fun receiveSharedUrl(url: String?) {
+        _incomingSharedUrl.value = url
+    }
+
+    /**
+     * Import an image Uri: run ML Kit OCR to extract text, then attempt to split into ingredients/steps.
+     * This keeps the logic simple: use IngredientParser heuristics to find lines that look like ingredients.
+     */
+    fun importImage(uri: android.net.Uri) {
+        viewModelScope.launch {
+            _state.value = UrlImportState.Loading
+            try {
+                // run ML Kit text recognition off the main thread to avoid blocking the UI
+                val context = com.tkolymp.napect.AppContextHolder.context ?: throw IllegalStateException("No context")
+                val (inputImage, recognizer) = withContext(Dispatchers.IO) {
+                    val img = com.google.mlkit.vision.common.InputImage.fromFilePath(context, uri)
+                    val r = com.google.mlkit.vision.text.TextRecognition.getClient(
+                        com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS
+                    )
+                    Pair(img, r)
+                }
+                val task = recognizer.process(inputImage)
+                // Await the Task result without blocking the main thread by suspending the coroutine
+                val result = withContext(Dispatchers.IO) { awaitTask(task) }
+                val rawText = result.text ?: ""
+
+                // simple heuristics: split by lines, categorize lines containing numbers or fractions as ingredients
+                val lines = rawText.lines().map { it.trim() }.filter { it.isNotBlank() }
+                val ingredients = mutableListOf<String>()
+                val steps = mutableListOf<String>()
+                for (ln in lines) {
+                    // ingredient-like heuristic: starts with digit or fraction or contains 'g'/'kg'/'tsp'/'cup'
+                    val lower = ln.lowercase()
+                    val looksLikeIngredient = lower.matches(Regex("^[0-9⅛⅜¼½¾⅓⅔].*")) ||
+                            lower.contains("tsp") || lower.contains("tbsp") || lower.contains("cup") ||
+                            lower.contains("g") || lower.contains("kg") || lower.contains("ml") || lower.contains("l")
+
+                    if (looksLikeIngredient) ingredients.add(ln) else steps.add(ln)
+                }
+
+                val title = lines.firstOrNull() ?: "Scanned Recipe"
+                val data = ImportedRecipeData(title = title, description = null, ingredients = ingredients, steps = steps, sourceUrl = null)
+                _state.value = UrlImportState.Success(data)
+            } catch (e: Exception) {
+                _state.value = UrlImportState.Error(e.message ?: "OCR import failed")
+            }
+        }
+    }
+
+    // Helper to suspend until a com.google.android.gms.tasks.Task completes
+    private suspend fun <T> awaitTask(task: com.google.android.gms.tasks.Task<T>): T = suspendCancellableCoroutine { cont ->
+        task.addOnSuccessListener { res ->
+            if (!cont.isCompleted) cont.resume(res)
+        }
+        task.addOnFailureListener { ex ->
+            if (!cont.isCompleted) cont.resumeWithException(ex)
+        }
+        task.addOnCanceledListener {
+            if (!cont.isCompleted) cont.resumeWithException(java.util.concurrent.CancellationException("Task was cancelled"))
+        }
+        cont.invokeOnCancellation {
+            // best effort cancel - Task doesn't support cancellation uniformly
+        }
+    }
 
     fun fetchUrl(url: String) {
         viewModelScope.launch {
