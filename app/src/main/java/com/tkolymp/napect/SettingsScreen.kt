@@ -10,8 +10,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Button
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -57,8 +63,8 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.size(12.dp))
         Text("Default servings: ${prefs.defaultServings}")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Button(onClick = { scope.launch { repo.setDefaultServings((prefs.defaultServings - 1).coerceAtLeast(1)) } }) { Text("-") }
-            Button(onClick = { scope.launch { repo.setDefaultServings(prefs.defaultServings + 1) } }) { Text("+") }
+            IconButton(onClick = { scope.launch { repo.setDefaultServings((prefs.defaultServings - 1).coerceAtLeast(1)) } }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Remove, contentDescription = "Decrease default servings") }
+            IconButton(onClick = { scope.launch { repo.setDefaultServings(prefs.defaultServings + 1) } }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Add, contentDescription = "Increase default servings") }
         }
 
         Spacer(modifier = Modifier.size(16.dp))
@@ -73,12 +79,12 @@ fun SettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxSize().padding(vertical = 4.dp)) {
                         // show name and AI badge when applicable
                         if (t.isAiGenerated) {
-                            androidx.compose.material3.AssistChip(onClick = {}, label = { Text(t.name) }, leadingIcon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Filled.AutoAwesome, contentDescription = "AI") })
+                            androidx.compose.material3.AssistChip(onClick = {}, label = { Text(t.name) }, leadingIcon = { Icon(imageVector = Icons.Filled.AutoAwesome, contentDescription = "AI") })
                         } else {
                             androidx.compose.material3.AssistChip(onClick = {}, label = { Text(t.name) })
                         }
                         Spacer(modifier = Modifier.size(8.dp))
-                        Button(onClick = { pendingDeleteId = t.id }) { Text("Delete") }
+                        IconButton(onClick = { pendingDeleteId = t.id }) { Icon(imageVector = Icons.Filled.Delete, contentDescription = "Delete tag") }
                     }
                 }
 

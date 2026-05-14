@@ -40,6 +40,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AssistChip
 // single dp import above
 @Composable
@@ -79,11 +83,11 @@ fun RecipeDetailScreen(
                 }
 
                 if (onEdit != null) {
-                    Button(onClick = { onEdit(recipe.id) }) { Text("Edit") }
+                    IconButton(onClick = { onEdit(recipe.id) }) { Icon(imageVector = androidx.compose.material.icons.Icons.Filled.Edit, contentDescription = "Edit recipe") }
                 }
 
                 if (onDelete != null) {
-                    Button(onClick = { showConfirmDelete = true }) { Text("Delete") }
+                    IconButton(onClick = { showConfirmDelete = true }) { Icon(imageVector = androidx.compose.material.icons.Icons.Filled.Delete, contentDescription = "Delete recipe") }
                 }
 
                 // show close only when the caller provided an onClose handler
@@ -111,9 +115,9 @@ fun RecipeDetailScreen(
 
         Spacer(modifier = Modifier.size(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Button(onClick = { if (servings > 1) servings-- }) { Text("-") }
+            IconButton(onClick = { if (servings > 1) servings-- }, modifier = Modifier.size(40.dp)) { Icon(imageVector = androidx.compose.material.icons.Icons.Filled.Remove, contentDescription = "Decrease servings") }
             Text("  Servings: $servings  ", modifier = Modifier.padding(horizontal = 8.dp))
-            Button(onClick = { servings++ }) { Text("+") }
+            IconButton(onClick = { servings++ }, modifier = Modifier.size(40.dp)) { Icon(imageVector = androidx.compose.material.icons.Icons.Filled.Add, contentDescription = "Increase servings") }
         }
 
         Spacer(modifier = Modifier.size(12.dp))

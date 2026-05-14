@@ -53,9 +53,16 @@ import com.tkolymp.napect.domain.model.Tag
 import com.tkolymp.napect.data.ai.TagSuggestion
 import com.tkolymp.napect.domain.model.TagGroup
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import android.util.Log
 import androidx.compose.runtime.snapshotFlow
@@ -268,7 +275,7 @@ fun AddRecipeScreen(
         if (photoBytes != null) {
             val bmp = BitmapFactory.decodeByteArray(photoBytes, 0, photoBytes!!.size)
             Image(bitmap = bmp.asImageBitmap(), contentDescription = "Selected photo", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
-            Button(onClick = { photoBytes = null }, modifier = Modifier.padding(top = 8.dp)) { Text("Remove Photo") }
+            TextButton(onClick = { photoBytes = null }, modifier = Modifier.padding(top = 8.dp)) { Text("Remove Photo") }
         } else {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { pickLauncher.launch("image/*") }, modifier = Modifier.weight(1f)) { Text("Pick Photo") }
@@ -385,9 +392,13 @@ fun AddRecipeScreen(
 
         Spacer(modifier = Modifier.size(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Button(onClick = { if (servingsBase > 1) servingsBase-- }) { Text("-") }
-            Text("  Base servings: $servingsBase  ", modifier = Modifier.padding(horizontal = 8.dp))
-            Button(onClick = { servingsBase++ }) { Text("+") }
+                IconButton(onClick = { if (servingsBase > 1) servingsBase-- }, modifier = Modifier.size(40.dp)) {
+                    Icon(imageVector = Icons.Filled.Remove, contentDescription = "Decrease base servings")
+                }
+                Text("  Base servings: $servingsBase  ", modifier = Modifier.padding(horizontal = 8.dp))
+                IconButton(onClick = { servingsBase++ }, modifier = Modifier.size(40.dp)) {
+                    Icon(imageVector = Icons.Filled.Add, contentDescription = "Increase base servings")
+                }
         }
 
         Spacer(modifier = Modifier.size(8.dp))
@@ -416,8 +427,11 @@ fun AddRecipeScreen(
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
-                    Button(onClick = { if (ingredients.size > 1) ingredients.removeAt(index) else { ingredients[index] = IngredientInputState() } }) {
-                        Text("Remove")
+                    IconButton(
+                        onClick = { if (ingredients.size > 1) ingredients.removeAt(index) else { ingredients[index] = IngredientInputState() } },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        androidx.compose.material3.Icon(imageVector = Icons.Filled.Delete, contentDescription = "Remove ingredient")
                     }
                 }
             }
@@ -524,8 +538,11 @@ fun AddRecipeScreen(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                     OutlinedTextField(value = step, onValueChange = { steps[index] = it }, label = { Text("Step ${index + 1}") }, modifier = Modifier.weight(1f))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = { if (steps.size > 1) steps.removeAt(index) else steps[index] = "" }) {
-                        Text("Remove")
+                    IconButton(
+                        onClick = { if (steps.size > 1) steps.removeAt(index) else steps[index] = "" },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        androidx.compose.material3.Icon(imageVector = Icons.Filled.Delete, contentDescription = "Remove step")
                     }
                 }
             }
@@ -577,7 +594,7 @@ fun AddRecipeScreen(
             }) {
                 Text("Save")
             }
-            Button(onClick = onCancel) {
+            TextButton(onClick = onCancel) {
                 Text("Cancel")
             }
         }

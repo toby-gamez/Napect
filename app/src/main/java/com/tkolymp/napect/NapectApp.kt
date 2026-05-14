@@ -69,8 +69,8 @@ fun NapectApp(
     // selected bottom nav destination (keeps the bottom bar highlighted)
     var selectedDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var showAdd by rememberSaveable { mutableStateOf(false) }
-    // category selection is kept in-memory only (no need to save across process death here)
-    var selectedCategory by remember { mutableStateOf<com.tkolymp.napect.domain.model.Category?>(null) }
+    // tag selection (replaces the previous Category chips). Kept in-memory only.
+    var selectedTagId by remember { mutableStateOf<Long?>(null) }
 
     // BackHandler integrates with the native OnBackPressedDispatcher so the system back
     // gesture (edge-swipe) and hardware back button are handled here.
@@ -165,15 +165,19 @@ fun NapectApp(
                 ) {
                     val baseList = items
                     val searchFiltered = if (vm.searchQuery.value.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
-                    val categoryFiltered = selectedCategory?.let { c -> searchFiltered.filter { it.category == c } } ?: searchFiltered
+                    // Apply tag filter if selectedTagId is set
+                    val tagFiltered = selectedTagId?.let { tid -> searchFiltered.filter { r -> r.tags.any { t -> t.id == tid } } } ?: searchFiltered
                     Column(modifier = Modifier.fillMaxWidth()) {
                         // Debug helper: show list sizes for diagnosis (remove after debugging)
-                        Text(text = "Debug: total=${baseList.size}, search=${searchResults.size}, searchFiltered=${searchFiltered.size}, categoryFiltered=${categoryFiltered.size}, selected=${selectedCategory?.name ?: "All"}", modifier = Modifier.padding(8.dp))
+                        Text(text = "Debug: total=${baseList.size}, search=${searchResults.size}, searchFiltered=${searchFiltered.size}, selectedTag=${selectedTagId ?: "All"}", modifier = Modifier.padding(8.dp))
                         // show any ViewModel error messages
                         val vmError by vm.error.collectAsState()
                         if (!vmError.isNullOrBlank()) Text(text = "Error: $vmError", modifier = Modifier.padding(8.dp))
                         OutlinedTextField(value = vm.searchQuery.value, onValueChange = { vm.setSearchQuery(it) }, label = { androidx.compose.material3.Text("Search") }, modifier = Modifier.fillMaxWidth().padding(8.dp))
-                        RecipeListScreen(recipes = categoryFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), selectedCategory = selectedCategory, onCategorySelected = { selectedCategory = it }, onDelete = { id -> vm.deleteRecipe(id) })
+                        // compute available tags (Category + Other) that are used by at least one recipe
+                        val allTags by vm.allTags.collectAsState()
+                        val usedTags = allTags.filter { tg -> (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) && baseList.any { r -> r.tags.any { t -> t.id == tg.id } } }
+                        RecipeListScreen(recipes = tagFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = selectedTagId, onTagSelected = { selectedTagId = it }, onDelete = { id -> vm.deleteRecipe(id) })
                     }
                 }
                 navComposable(AppDestinations.FAVORITES.name,
@@ -182,12 +186,14 @@ fun NapectApp(
                 ) {
                     val baseList = items.filter { it.isFavorite }
                     val searchFiltered = if (vm.searchQuery.value.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
-                    val categoryFiltered = selectedCategory?.let { c -> searchFiltered.filter { it.category == c } } ?: searchFiltered
+                    val tagFiltered = selectedTagId?.let { tid -> searchFiltered.filter { r -> r.tags.any { t -> t.id == tid } } } ?: searchFiltered
                     Column(modifier = Modifier.fillMaxWidth()) {
                         // Debug helper: show list sizes for diagnosis (remove after debugging)
-                        Text(text = "Debug: total=${baseList.size}, search=${searchResults.size}, searchFiltered=${searchFiltered.size}, categoryFiltered=${categoryFiltered.size}, selected=${selectedCategory?.name ?: "All"}", modifier = Modifier.padding(8.dp))
+                        Text(text = "Debug: total=${baseList.size}, search=${searchResults.size}, searchFiltered=${searchFiltered.size}, selectedTag=${selectedTagId ?: "All"}", modifier = Modifier.padding(8.dp))
                         OutlinedTextField(value = vm.searchQuery.value, onValueChange = { vm.setSearchQuery(it) }, label = { androidx.compose.material3.Text("Search") }, modifier = Modifier.fillMaxWidth().padding(8.dp))
-                        RecipeListScreen(recipes = categoryFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), selectedCategory = selectedCategory, onCategorySelected = { selectedCategory = it }, onDelete = { id -> vm.deleteRecipe(id) })
+                        val allTags by vm.allTags.collectAsState()
+                        val usedTags = allTags.filter { tg -> (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) && baseList.any { r -> r.tags.any { t -> t.id == tg.id } } }
+                        RecipeListScreen(recipes = tagFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = selectedTagId, onTagSelected = { selectedTagId = it }, onDelete = { id -> vm.deleteRecipe(id) })
                     }
                 }
                 navComposable(AppDestinations.SETTINGS.name,
