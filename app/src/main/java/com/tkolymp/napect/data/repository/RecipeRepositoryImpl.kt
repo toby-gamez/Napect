@@ -13,6 +13,8 @@ import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.repository.RecipeRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import android.util.Log
+import java.text.Normalizer
 
 class RecipeRepositoryImpl(
     private val dao: RecipeDao,
@@ -61,7 +63,84 @@ class RecipeRepositoryImpl(
 
     override suspend fun suggestTagsForRecipe(recipe: Recipe): TagSuggestion {
         val text = listOfNotNull(recipe.title, recipe.summary).joinToString(" ") + " " + recipe.ingredients.joinToString(" ") { it.name } + " " + recipe.steps.joinToString(" ") { it.instruction }
-        val suggestions = TagSuggester.suggest(text)
+        // Start with keyword-based suggestions
+        val suggestions = TagSuggester.suggest(text).toMutableSet()
+        // Ensure we don't keep multiple conflicting difficulty suggestions from the
+        // keyword suggester; we'll compute a single canonical difficulty below and
+        // replace any existing difficulty suggestions with it.
+        val existingDifficulties = suggestions.filter { it.second == com.tkolymp.napect.domain.model.TagGroup.DIFFICULTY }.toSet()
+        if (existingDifficulties.isNotEmpty()) suggestions.removeAll(existingDifficulties)
+
+        // Heuristic difficulty inference so every recipe gets a difficulty tag by default.
+        // Simple heuristic combining ingredient count, step count and any explicit time hints.
+        fun extractEstimatedMinutes(s: String): Int? {
+            val lower = s.lowercase()
+            // match patterns like "1 h 30 min", "90 min", "1.5 h"
+            val hMinMatch = Regex("(\\d{1,2})\\s*h(?:ours?)?\\s*(\\d{1,2})\\s*min").find(lower)
+            if (hMinMatch != null) {
+                val h = hMinMatch.groupValues[1].toIntOrNull() ?: 0
+                val m = hMinMatch.groupValues[2].toIntOrNull() ?: 0
+                return h * 60 + m
+            }
+            val hourMatch = Regex("(\\d{1,2}(?:\\.\\d+)?)\\s*h(?:ours?)?").find(lower)
+            if (hourMatch != null) {
+                val h = hourMatch.groupValues[1].toDoubleOrNull() ?: return null
+                return (h * 60).toInt()
+            }
+            val minMatch = Regex("(\\d{1,3})\\s*min").find(lower)
+            if (minMatch != null) return minMatch.groupValues[1].toIntOrNull()
+            return null
+        }
+
+        val ingCount = recipe.ingredients.size
+        val stepCount = recipe.steps.size
+        val estimatedMins = extractEstimatedMinutes(text)
+        var score = 0
+        if (ingCount <= 6) score-- else if (ingCount > 12) score++
+        if (stepCount <= 4) score-- else if (stepCount > 8) score++
+        if (estimatedMins != null) {
+            if (estimatedMins <= 20) score-- else if (estimatedMins >= 90) score++
+        }
+        var difficulty = when {
+            score <= -1 -> "Easy"
+            score >= 1 -> "Hard"
+            else -> "Medium"
+        }
+
+        // Normalize and remove diacritics so we detect Czech variants like "nepečený"
+        val normalized = Normalizer.normalize(text.lowercase(), Normalizer.Form.NFD).replace("\\p{M}+".toRegex(), "")
+        val normalizedWs = normalized.replace('-', ' ')
+        if (normalizedWs.contains("no bake") || normalizedWs.contains("nobake") || normalizedWs.contains("nepecen")) {
+            difficulty = "Easy"
+            try { Log.d("RecipeRepo", "No-bake cue detected; forcing Easy for '${recipe.title}'") } catch (_: Exception) { }
+        }
+
+        // If ambiguous, try to consult an AI client when available via a fallback path.
+        // Note: the default repository doesn't have an AiClient; callers may inject one
+        // by creating a custom repository if desired. We only call through if an
+        // AiClient is present on the implementation (detected via reflection here).
+        try {
+            // Use reflection to find a global DefaultAiClient instance if present in app MainActivity
+            val mainCls = try { Class.forName("com.tkolymp.napect.MainActivity") } catch (_: Throwable) { null }
+            if (difficulty == "Medium" && mainCls != null) {
+                try {
+                    val field = mainCls.getDeclaredField("INSTANCE_AI_CLIENT")
+                    field.isAccessible = true
+                    val aiClient = field.get(null) as? com.tkolymp.napect.data.ai.AiClient
+                    if (aiClient != null) {
+                        // inference is suspend-only; we can't call suspend from here synchronously,
+                        // so we skip async AI inference inside the repository to keep this method
+                        // deterministic. A better approach is to inject AiClient into the repo.
+                    }
+                } catch (_: Throwable) {
+                    // ignore
+                }
+            }
+        } catch (_: Exception) { }
+
+        try { Log.d("RecipeRepo", "Inferred difficulty for '${recipe.title}': $difficulty (score=$score, ing=$ingCount, steps=$stepCount, mins=$estimatedMins)") } catch (_: Exception) { }
+        // Add the canonical difficulty (we removed keyword-provided difficulties above)
+        suggestions.add(difficulty to TagGroup.DIFFICULTY)
         val confirmed = mutableListOf<com.tkolymp.napect.domain.model.Tag>()
         val created = mutableListOf<com.tkolymp.napect.domain.model.Tag>()
         for ((name, group) in suggestions) {
@@ -77,6 +156,9 @@ class RecipeRepositoryImpl(
                 created.add(final.toDomain())
             }
         }
+        try {
+            Log.d("RecipeRepo", "Tag suggestions for '${recipe.title}': ${suggestions.map { it.first + "/" + it.second }} -> confirmed=${confirmed.map { it.id }} newlyCreated=${created.map { it.id }}")
+        } catch (_: Exception) { }
         return TagSuggestion(confirmed = confirmed, newlyCreated = created)
     }
 

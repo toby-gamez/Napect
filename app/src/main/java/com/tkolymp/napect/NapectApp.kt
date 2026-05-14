@@ -215,15 +215,22 @@ fun NapectApp(
                     val allTags by vm.allTags.collectAsState()
                     val suggested by vm.suggestedTags.collectAsState()
                     val suggestedIds = suggested?.let { (it.confirmed + it.newlyCreated).map { t -> t.id }.toSet() } ?: emptySet()
-                    AddRecipeScreen(
-                        onSave = { r, tagIds -> vm.createRecipeWithTags(r, tagIds) { navController.popBackStack() } },
-                        onCancel = { navController.popBackStack() },
-                        availableTags = allTags,
-                        suggestedTagIds = suggestedIds,
-                        onSuggest = { preview -> vm.suggestTagsForRecipe(preview) },
-                        onCreateUserTag = { name, group -> vm.createUserTag(name, group) },
-                        importVm = importVm
-                    )
+                    val suggestedNames = suggested?.let { (it.confirmed + it.newlyCreated).map { t -> t.name }.toSet() } ?: emptySet()
+                    // Debug logging to ensure suggestions are visible at app composition time
+                    LaunchedEffect(suggested) {
+                        try {
+                            android.util.Log.d("NapectApp", "VM suggested tags: confirmed=${suggested?.confirmed?.map { it.name }} newly=${suggested?.newlyCreated?.map { it.name }} ids=$suggestedIds")
+                        } catch (_: Exception) { }
+                    }
+                        AddRecipeScreen(
+                            onSave = { r, tagIds -> vm.createRecipeWithTags(r, tagIds) { navController.popBackStack() } },
+                            onCancel = { navController.popBackStack() },
+                            availableTags = allTags,
+                            suggested = suggested,
+                            onSuggest = { preview -> vm.suggestTagsForRecipe(preview) },
+                            onCreateUserTag = { name, group -> vm.createUserTag(name, group) },
+                            importVm = importVm
+                        )
                 }
 
                 // Camera route replaced by launching the platform camera from AddRecipeScreen using
@@ -249,7 +256,7 @@ fun NapectApp(
                             onSave = { updated, tagIds -> vm.updateRecipeWithTags(updated, tagIds) { navController.popBackStack() } },
                             onCancel = { navController.popBackStack() },
                             availableTags = allTags,
-                            suggestedTagIds = suggestedIds,
+                            suggested = suggested,
                             onSuggest = { preview -> vm.suggestTagsForRecipe(preview) },
                             onCreateUserTag = { name, group -> vm.createUserTag(name, group) },
                             importVm = importVm

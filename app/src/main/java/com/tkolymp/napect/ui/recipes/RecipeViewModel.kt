@@ -70,6 +70,9 @@ class RecipeViewModel(private val repo: RecipeRepository, private val ai: com.tk
             try {
                 val suggestion = repo.suggestTagsForRecipe(recipe)
                 _suggestedTags.value = suggestion
+                try {
+                    android.util.Log.d("RecipeVM", "suggestTagsForRecipe -> confirmed=${suggestion.confirmed.map { it.name }} newly=${suggestion.newlyCreated.map { it.name }}")
+                } catch (_: Exception) { }
             } catch (e: Exception) {
                 _error.value = e.message ?: "Tag suggestion failed"
             }

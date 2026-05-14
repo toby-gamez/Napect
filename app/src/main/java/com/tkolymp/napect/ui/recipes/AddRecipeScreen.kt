@@ -50,12 +50,14 @@ import com.tkolymp.napect.domain.model.Ingredient
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.model.Step
 import com.tkolymp.napect.domain.model.Tag
+import com.tkolymp.napect.data.ai.TagSuggestion
 import com.tkolymp.napect.domain.model.TagGroup
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.AssistChip
 import androidx.compose.runtime.LaunchedEffect
+import android.util.Log
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.collectLatest
@@ -83,7 +85,7 @@ fun AddRecipeScreen(
     modifier: Modifier = Modifier,
     initialRecipe: Recipe? = null,
     availableTags: List<Tag> = emptyList(),
-    suggestedTagIds: Set<Long> = emptySet(),
+    suggested: TagSuggestion? = null,
     onSuggest: (Recipe) -> Unit = {},
     onCreateUserTag: (String, TagGroup) -> Unit = { _, _ -> },
     onOpenCamera: () -> Unit = {},
@@ -255,6 +257,9 @@ fun AddRecipeScreen(
                 }
             }
     }
+
+    // Debug: if suggestions exist, print them to log (helps during runtime debugging)
+    // (logged below after suggestion lists are constructed)
 
     // lists initialized above
 
@@ -438,23 +443,48 @@ fun AddRecipeScreen(
         // tags yet, merge them into the selectedTagIds so they appear pre-selected.
         val userTouchedTags = remember { mutableStateOf(false) }
 
-        LaunchedEffect(suggestedTagIds) {
-            if (!userTouchedTags.value) {
-                for (id in suggestedTagIds) {
-                    if (!selectedTagIds.contains(id)) selectedTagIds.add(id)
+        // Build suggestion lists from the passed TagSuggestion object (if any)
+        val suggestedTagsList = suggested?.let { it.confirmed + it.newlyCreated } ?: emptyList()
+        val suggestedIdsLocal = suggestedTagsList.map { it.id }.toSet()
+        val suggestedNamesLocal = suggestedTagsList.map { it.name }.toSet()
+
+        try {
+            Log.d("AddRecipeScreen", "suggested -> confirmed=${suggested?.confirmed?.map { it.name }} newly=${suggested?.newlyCreated?.map { it.name }} ids=${suggestedTagsList.map { it.id }}")
+        } catch (_: Exception) { }
+
+        // Use the whole suggested object as the effect key so we react to any change
+        // and merge suggestions into selectedTagIds in a way that's tolerant to
+        // ordering/race conditions between DB updates and UI composition.
+        LaunchedEffect(suggested) {
+            Log.d("AddRecipeScreen", "LaunchedEffect(suggested) triggered: userTouched=${userTouchedTags.value}, suggestedNames=${suggestedTagsList.map { it.name }}, selectedBefore=${selectedTagIds.toList()}")
+            if (!userTouchedTags.value && suggestedTagsList.isNotEmpty()) {
+                for (t in suggestedTagsList) {
+                    val match = availableTags.find { it.id == t.id || it.name.equals(t.name, ignoreCase = true) }
+                    if (match != null) {
+                        if (!selectedTagIds.contains(match.id)) selectedTagIds.add(match.id)
+                    } else {
+                        if (t.id > 0L && !selectedTagIds.contains(t.id)) selectedTagIds.add(t.id)
+                    }
                 }
+                Log.d("AddRecipeScreen", "LaunchedEffect(suggested) applied -> selectedAfter=${selectedTagIds.toList()}")
             }
         }
 
         // group tags by group for display
         val grouped = availableTags.groupBy { it.group }
+        // Determine any suggested tags that are not yet present in availableTags
+        val availableNamesLower = availableTags.map { it.name.lowercase() }.toSet()
+        val extraSuggested = suggestedTagsList.filter { it.name.lowercase() !in availableNamesLower }
+
+        // No separate name-only selection list — we toggle selectedTagIds directly for
+        // suggested tags that are not yet part of availableTags.
         grouped.forEach { (group, tags) ->
             Text(group.name, modifier = Modifier.padding(top = 8.dp))
             FlowRow(modifier = Modifier.fillMaxWidth()) {
                 for (t in tags) {
                     // If the user touched tags, show only their explicit selection.
                     // Otherwise, preselect AI-suggested tags for convenience.
-                    val checked = if (userTouchedTags.value) selectedTagIds.contains(t.id) else (selectedTagIds.contains(t.id) || suggestedTagIds.contains(t.id))
+                    val checked = if (userTouchedTags.value) selectedTagIds.contains(t.id) else (selectedTagIds.contains(t.id) || suggestedIdsLocal.contains(t.id) || suggestedNamesLocal.contains(t.name))
                     val onChipClick = {
                         if (selectedTagIds.contains(t.id)) selectedTagIds.remove(t.id) else selectedTagIds.add(t.id)
                         userTouchedTags.value = true
@@ -465,6 +495,21 @@ fun AddRecipeScreen(
                     } else {
                         FilterChip(selected = checked, onClick = onChipClick, label = { Text(t.name) }, modifier = Modifier.padding(end = 8.dp))
                     }
+                }
+            }
+        }
+
+        // Render extra suggested tags (those not present yet in availableTags)
+        if (extraSuggested.isNotEmpty()) {
+            Text("Suggested", modifier = Modifier.padding(top = 8.dp))
+            FlowRow(modifier = Modifier.fillMaxWidth()) {
+                for (st in extraSuggested) {
+                    val checked = if (userTouchedTags.value) selectedTagIds.contains(st.id) else true
+                    val onChipClick = {
+                        if (selectedTagIds.contains(st.id)) selectedTagIds.remove(st.id) else selectedTagIds.add(st.id)
+                        userTouchedTags.value = true
+                    }
+                    FilterChip(selected = checked, onClick = onChipClick, label = { Text(st.name) }, leadingIcon = { Icon(androidx.compose.material.icons.Icons.Filled.AutoAwesome, contentDescription = "AI") }, modifier = Modifier.padding(end = 8.dp))
                 }
             }
         }
@@ -512,7 +557,7 @@ fun AddRecipeScreen(
                     val finalTagIds = if (userTouchedTags.value || selectedTagIds.isNotEmpty()) {
                         selectedTagIds.toList()
                     } else {
-                        suggestedTagIds.toList()
+                        suggestedIdsLocal.toList()
                     }
 
                     onSave(

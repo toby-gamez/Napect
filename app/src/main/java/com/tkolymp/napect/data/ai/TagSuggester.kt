@@ -1,6 +1,7 @@
 package com.tkolymp.napect.data.ai
 
 import com.tkolymp.napect.domain.model.TagGroup
+import java.text.Normalizer
 
 /**
  * Simple keyword-based tag suggester. Operates offline.
@@ -32,6 +33,12 @@ object TagSuggester {
         Regex("\\bital(ian)?\\b") to listOf("Italian" to TagGroup.CUISINE),
         Regex("\\bpasta\\b|\\bpizza\\b") to listOf("Italian" to TagGroup.CUISINE),
         Regex("\\bsoy sauce\\b|\\bwok\\b|\\btofu\\b") to listOf("Chinese" to TagGroup.CUISINE),
+
+        // Cheesecake / strawberry (English + Czech variants)
+        Regex("\\bcheesecake\\b") to listOf("Dessert" to TagGroup.CATEGORY, "Cheesecake" to TagGroup.OTHER),
+        Regex("\\bstrawberr(y|ies)\\b|\\bjahodov\\b|\\bjahod\\b|\\bjahody\\b") to listOf("Strawberry" to TagGroup.OTHER),
+        // No-bake / nepečený hints
+        Regex("\\bno[- ]?bake\\b|\\bnepecen\\b|\\bnepecen[y|a|e]\\b") to listOf("No-Bake" to TagGroup.METHOD, "Dessert" to TagGroup.CATEGORY),
 
         // CATEGORY / MEAL hints (map to CATEGORY when appropriate). We return multiple
         // complementary tags for richer suggestions (e.g. dessert -> Dessert, Sweet, Baked)
@@ -67,10 +74,12 @@ object TagSuggester {
     )
 
     fun suggest(text: String): Set<Pair<String, TagGroup>> {
+        // Lowercase and remove diacritics so patterns match both English and Czech variants
         val lower = text.lowercase()
+        val normalized = Normalizer.normalize(lower, Normalizer.Form.NFD).replace("\\p{M}+".toRegex(), "")
         val results = mutableSetOf<Pair<String, TagGroup>>()
         for ((regex, vs) in KEYWORD_MAP) {
-            if (regex.containsMatchIn(lower)) {
+            if (regex.containsMatchIn(normalized)) {
                 for (v in vs) results.add(v)
             }
         }
