@@ -11,6 +11,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.remember
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -77,6 +85,10 @@ fun NapectApp(
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+    // Holders for actions that child screens can register so the top app bar can
+    // expose them in a global actions menu.
+    val pickActionState = remember { mutableStateOf<(() -> Unit)?>(null) }
+    val cameraActionState = remember { mutableStateOf<(() -> Unit)?>(null) }
     // Top level destinations: these should never show the back arrow
     val topLevelRoutes = setOf(
         AppDestinations.HOME.name,
@@ -125,8 +137,24 @@ fun NapectApp(
                     }
                 }
                 , actions = {
-                    // link icon -> open import screen if importVm available
-                    // Import icon removed — URL import is handled inline in the Add screen
+                    var menuExpanded by remember { mutableStateOf(false) }
+
+                    if (currentRoute == "add") {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Filled.Add, contentDescription = "Actions")
+                        }
+
+                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            DropdownMenuItem(text = { Text("Pick Photo") }, onClick = {
+                                menuExpanded = false
+                                try { pickActionState.value?.invoke() } catch (_: Exception) { }
+                            })
+                            DropdownMenuItem(text = { Text("Open Camera") }, onClick = {
+                                menuExpanded = false
+                                try { cameraActionState.value?.invoke() } catch (_: Exception) { }
+                            })
+                        }
+                    }
                 }
             )
         }, floatingActionButton = {
@@ -235,6 +263,8 @@ fun NapectApp(
                             suggested = suggested,
                             onSuggest = { preview -> vm.suggestTagsForRecipe(preview) },
                             onCreateUserTag = { name, group -> vm.createUserTag(name, group) },
+                            onRegisterPickPhotoAction = { cb -> pickActionState.value = cb },
+                            onRegisterOpenCameraAction = { cb -> cameraActionState.value = cb },
                             importVm = importVm
                         )
                 }
@@ -265,6 +295,8 @@ fun NapectApp(
                             suggested = suggested,
                             onSuggest = { preview -> vm.suggestTagsForRecipe(preview) },
                             onCreateUserTag = { name, group -> vm.createUserTag(name, group) },
+                            onRegisterPickPhotoAction = { cb -> pickActionState.value = cb },
+                            onRegisterOpenCameraAction = { cb -> cameraActionState.value = cb },
                             importVm = importVm
                         )
                     }

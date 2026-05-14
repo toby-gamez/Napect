@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
+import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -95,6 +96,10 @@ fun AddRecipeScreen(
     suggested: TagSuggestion? = null,
     onSuggest: (Recipe) -> Unit = {},
     onCreateUserTag: (String, TagGroup) -> Unit = { _, _ -> },
+    // Registerers allow the parent (NapectApp) to show global actions (topbar) that
+    // trigger the photo pick / camera flows which are implemented here.
+    onRegisterPickPhotoAction: (((() -> Unit) -> Unit)) = { _ -> },
+    onRegisterOpenCameraAction: (((() -> Unit) -> Unit)) = { _ -> },
     onOpenCamera: () -> Unit = {},
     importVm: UrlImportViewModel? = null
 ) {
@@ -135,14 +140,8 @@ fun AddRecipeScreen(
 
     var currentCameraUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
-    // Inline URL import UI state (merged into Add screen)
-    var showUrlEntry by remember { mutableStateOf(false) }
-    var urlText by remember { mutableStateOf("") }
-    // final source URL for the recipe (populated from inline entry or import VM results)
-    var sourceUrl by remember { mutableStateOf<String?>(init?.sourceUrl) }
-
-    // Platform camera (TakePicture) flow implemented locally: create a temp file, obtain a FileProvider uri
-    // and launch the built-in camera app. On success read the bytes and set photoBytes.
+    // Platform camera (TakePicture) launcher. Declared before permission launcher so
+    // it can be safely invoked from within the permission callback.
     val takePictureLauncher = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.TakePicture()) { success ->
         if (success) {
             try {
@@ -158,6 +157,80 @@ fun AddRecipeScreen(
             } catch (_: Exception) { }
         }
     }
+
+    // Permission launcher for camera access. Defined here so it can be used by the
+    // openCameraAction that is registered with the parent actions.
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(RequestPermission()) { granted ->
+        if (granted) {
+            try {
+                // create file & launch camera
+                val tmpFile = java.io.File.createTempFile("camera_capture_${System.currentTimeMillis()}", ".jpg", context.cacheDir)
+                tmpFile.deleteOnExit()
+                val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tmpFile)
+                currentCameraUri = uri
+                // Grant URI write permission to any camera activity that can handle the intent
+                try {
+                    val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply { putExtra(MediaStore.EXTRA_OUTPUT, uri) }
+                    val resList = context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+                    for (res in resList) {
+                        context.grantUriPermission(res.activityInfo.packageName, uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                } catch (_: Exception) { }
+                takePictureLauncher.launch(uri)
+                Toast.makeText(context, "Opening camera…", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to open camera: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+            }
+        } else {
+            Toast.makeText(context, "Camera permission is required to take photos", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Inline URL import UI state (merged into Add screen)
+    var showUrlEntry by remember { mutableStateOf(false) }
+    var urlText by remember { mutableStateOf("") }
+    // final source URL for the recipe (populated from inline entry or import VM results)
+    var sourceUrl by remember { mutableStateOf<String?>(init?.sourceUrl) }
+
+    // (TakePicture launcher already declared above)
+
+    // Helper that encapsulates the camera-launch logic for use when permission already granted
+    val launchCameraInternal: () -> Unit = {
+        try {
+            val tmpFile = java.io.File.createTempFile("camera_capture_${System.currentTimeMillis()}", ".jpg", context.cacheDir)
+            tmpFile.deleteOnExit()
+            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tmpFile)
+            currentCameraUri = uri
+            try {
+                val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply { putExtra(MediaStore.EXTRA_OUTPUT, uri) }
+                val resList = context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+                for (res in resList) {
+                    context.grantUriPermission(res.activityInfo.packageName, uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            } catch (_: Exception) { }
+            takePictureLauncher.launch(uri)
+            Toast.makeText(context, "Opening camera…", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(context, "Failed to open camera: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Action the parent can invoke to open the camera. It will request permission if needed.
+    val openCameraAction: () -> Unit = {
+        try {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                launchCameraInternal()
+            } else {
+                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            }
+        } catch (e: Exception) {
+            Toast.makeText(context, "Failed to open camera: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Register the local pick & camera actions with the parent so top-bar actions can invoke them.
+    onRegisterPickPhotoAction({ pickLauncher.launch("image/*") })
+    onRegisterOpenCameraAction(openCameraAction)
 
     // Observe import VM state (if provided) and populate fields when OCR completes
     if (importVm != null) {
@@ -278,63 +351,11 @@ fun AddRecipeScreen(
             TextButton(onClick = { photoBytes = null }, modifier = Modifier.padding(top = 8.dp)) { Text("Remove Photo") }
         } else {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { pickLauncher.launch("image/*") }, modifier = Modifier.weight(1f)) { Text("Pick Photo") }
-                // Request camera permission at runtime and open platform camera
-                val cameraPermissionLauncher = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
-                    if (granted) {
-                        // permission granted — create file and launch camera
-                        try {
-                            val tmpFile = java.io.File.createTempFile("camera_capture_${System.currentTimeMillis()}", ".jpg", context.cacheDir)
-                            tmpFile.deleteOnExit()
-                            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tmpFile)
-                            currentCameraUri = uri
-                            // Grant URI write permission to any camera activity that can handle the intent (extra safety)
-                            try {
-                                val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply { putExtra(MediaStore.EXTRA_OUTPUT, uri) }
-                                val resList = context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
-                                for (res in resList) {
-                                    context.grantUriPermission(res.activityInfo.packageName, uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                            } catch (_: Exception) { }
-                            takePictureLauncher.launch(uri)
-                            Toast.makeText(context, "Opening camera…", Toast.LENGTH_SHORT).show()
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Failed to open camera: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
-                        }
-                    } else {
-                        Toast.makeText(context, "Camera permission is required to take photos", Toast.LENGTH_SHORT).show()
-                    }
-                }
-
-                Button(onClick = {
-                    try {
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                            // already have permission — create temp file and launch camera
-                            val tmpFile = java.io.File.createTempFile("camera_capture_${System.currentTimeMillis()}", ".jpg", context.cacheDir)
-                            tmpFile.deleteOnExit()
-                            val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tmpFile)
-                            currentCameraUri = uri
-                            // Grant URI permission to camera apps as a fallback
-                            try {
-                                val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply { putExtra(MediaStore.EXTRA_OUTPUT, uri) }
-                                val resList = context.packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
-                                for (res in resList) {
-                                    context.grantUriPermission(res.activityInfo.packageName, uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                            } catch (_: Exception) { }
-                            takePictureLauncher.launch(uri)
-                            Toast.makeText(context, "Opening camera…", Toast.LENGTH_SHORT).show()
-                        } else {
-                            // request permission — launcher will handle launching the camera when granted
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "Failed to open camera: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
-                    }
-                }, modifier = Modifier.weight(1f)) { Text("Open Camera") }
+                Text("Add a photo using the + menu in the top bar", modifier = Modifier.weight(1f))
+                // Camera & pick actions moved to top bar menu; remove inline camera/pick buttons.
                 // URL import button (only shown if a UrlImportViewModel was provided)
                 if (importVm != null) {
-                    Button(onClick = { showUrlEntry = !showUrlEntry }, modifier = Modifier.weight(1f)) { Text("Import URL") }
+                    Button(onClick = { showUrlEntry = !showUrlEntry }) { Text("Import URL") }
                 }
             }
             // Inline URL entry shown when the Import URL button is toggled
