@@ -2,6 +2,8 @@ package com.tkolymp.napect.ui.recipes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.repository.RecipeRepository
 import com.tkolymp.napect.data.ai.RecipeClassifier
@@ -18,9 +20,11 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import com.tkolymp.napect.domain.model.Tag
+import com.tkolymp.napect.data.ai.AiClient
 import com.tkolymp.napect.domain.model.TagGroup
 
-class RecipeViewModel(private val repo: RecipeRepository, private val ai: com.tkolymp.napect.data.ai.AiClient? = null) : ViewModel() {
+@HiltViewModel
+class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, private val ai: AiClient) : ViewModel() {
     val recipes: StateFlow<List<Recipe>> = repo.getAllRecipes()
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

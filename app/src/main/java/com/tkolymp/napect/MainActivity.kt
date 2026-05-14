@@ -5,6 +5,12 @@ import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import androidx.activity.viewModels
+import com.tkolymp.napect.data.local.DatabaseProvider
+import com.tkolymp.napect.data.network.UrlImportService
+import com.tkolymp.napect.data.ai.GeminiNanoService
+import com.tkolymp.napect.data.ai.AiClient
 import androidx.compose.ui.Modifier
 import com.tkolymp.napect.ui.theme.NapectTheme
 import com.tkolymp.napect.data.local.SettingsRepository
@@ -13,43 +19,37 @@ import com.tkolymp.napect.data.local.UserPreferences
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.lifecycle.ViewModelProvider
-import com.tkolymp.napect.ui.recipes.RecipeViewModel
-import com.tkolymp.napect.ui.recipes.RecipeViewModelFactory
-import com.tkolymp.napect.data.network.UrlImportService
-import com.tkolymp.napect.ui.recipes.UrlImportViewModelFactory
-import com.tkolymp.napect.ui.recipes.UrlImportViewModel
-import com.tkolymp.napect.data.local.DatabaseProvider
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
-import com.tkolymp.napect.data.repository.RecipeRepositoryImpl
+import javax.inject.Inject
+import dagger.hilt.android.AndroidEntryPoint
+import com.tkolymp.napect.domain.repository.RecipeRepository
+import com.tkolymp.napect.ui.recipes.RecipeViewModel
+import com.tkolymp.napect.ui.recipes.UrlImportViewModel
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    private lateinit var importVm: com.tkolymp.napect.ui.recipes.UrlImportViewModel
+    // Use Hilt-provided ViewModels
+    private val vm: com.tkolymp.napect.ui.recipes.RecipeViewModel by viewModels()
+    private val importVm: com.tkolymp.napect.ui.recipes.UrlImportViewModel by viewModels()
+
+    @Inject lateinit var importService: UrlImportService
+    @Inject lateinit var geminiService: GeminiNanoService
+    @Inject lateinit var aiClient: AiClient
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // create DB and repository and ViewModel here (manual DI)
-        val db = DatabaseProvider.getDatabase(applicationContext)
-        val repo = RecipeRepositoryImpl(db.recipeDao(), db.tagDao())
         // Ensure default tags exist (idempotent) so fresh installs or upgrades get defaults
+        val db = DatabaseProvider.getDatabase(applicationContext)
         lifecycleScope.launch {
             try {
-                repo.ensureDefaultTags()
+                // repository's ensureDefaultTags is available via database-backed repo
+                // call directly on a temporary RecipeRepositoryImpl to seed defaults
+                com.tkolymp.napect.data.repository.RecipeRepositoryImpl(db.recipeDao(), db.tagDao()).ensureDefaultTags()
             } catch (_: Exception) { }
         }
-        // URL import service & ViewModel
-        val importService = UrlImportService()
-        // AI client: prefer Gemini wrapper when available, fallback to local summarizer
-        val geminiService = com.tkolymp.napect.data.ai.GeminiNanoService(applicationContext, importService)
-        val aiClient = com.tkolymp.napect.data.ai.DefaultAiClient(geminiService)
-
-        val vm: RecipeViewModel = ViewModelProvider(this, RecipeViewModelFactory(repo, aiClient)).get(RecipeViewModel::class.java)
-
-        // URL import service & ViewModel
-        // Gemini Nano service wrapper (uses fallback when Gemini not available)
-        importVm = ViewModelProvider(this, UrlImportViewModelFactory(importService, repo, geminiService, aiClient)).get(UrlImportViewModel::class.java)
 
         // detect shared URL/text or shared image
         var sharedUrl: String? = null

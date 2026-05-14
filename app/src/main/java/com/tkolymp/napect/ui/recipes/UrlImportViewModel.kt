@@ -2,6 +2,8 @@ package com.tkolymp.napect.ui.recipes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import com.tkolymp.napect.data.ai.RecipeClassifier
 import com.tkolymp.napect.data.network.ImportedRecipeData
 import com.tkolymp.napect.data.network.UrlImportService
@@ -29,11 +31,12 @@ sealed interface UrlImportState {
     object Saved : UrlImportState
 }
 
-class UrlImportViewModel(
+@HiltViewModel
+class UrlImportViewModel @Inject constructor(
     private val service: UrlImportService,
     private val repo: RecipeRepository,
-    private val gemini: GeminiNanoService? = null,
-    private val ai: AiClient? = null
+    private val gemini: GeminiNanoService,
+    private val ai: AiClient
 ) : ViewModel() {
     private val _state = MutableStateFlow<UrlImportState>(UrlImportState.Idle)
     val state: StateFlow<UrlImportState> = _state.asStateFlow()

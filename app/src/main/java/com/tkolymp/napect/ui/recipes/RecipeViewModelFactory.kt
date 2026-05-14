@@ -5,7 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import com.tkolymp.napect.domain.repository.RecipeRepository
 import com.tkolymp.napect.data.ai.AiClient
 
-class RecipeViewModelFactory(private val repo: RecipeRepository, private val ai: AiClient? = null) : ViewModelProvider.Factory {
+// Minimal factory used when Hilt isn't available during early migration. Expects non-null AiClient.
+class RecipeViewModelFactory(private val repo: RecipeRepository, private val ai: AiClient) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(RecipeViewModel::class.java)) {

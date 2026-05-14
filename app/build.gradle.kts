@@ -1,7 +1,10 @@
 plugins {
     alias(libs.plugins.android.application)
+    // Use AGP built-in Kotlin (do not apply kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    // Hilt plugin applied via version catalog
+    alias(libs.plugins.hilt)
 }
 
 android {
@@ -73,7 +76,11 @@ dependencies {
     // CameraX removed in favor of using the platform camera app (ActivityResultContracts.TakePicture)
     // ML Kit text recognition (on-device) via version catalog
     implementation(libs.mlkit.text.recognition)
-    // (Hilt removed for now)
+    // Hilt
+    implementation(libs.hilt.android)
+    implementation(libs.androidx.hilt.navigation.compose)
+    // Use Hilt KSP processor
+    ksp(libs.hiltKsp)
     // Network (URL import) via version catalog
     implementation(libs.okhttp)
     // Image decoding (for reading picked images) - removed unused Glide dependency
