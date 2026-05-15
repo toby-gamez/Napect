@@ -50,7 +50,15 @@ import com.tkolymp.napect.ui.recipes.RecipeViewModel
 import com.tkolymp.napect.ui.recipes.RecipeDetailScreen
 import com.tkolymp.napect.ui.recipes.MakeScreen
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SearchBar
+import androidx.compose.material3.ListItem
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.rememberCoroutineScope
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.material3.Card
 import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -69,6 +77,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Link
@@ -98,6 +107,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.filled.Image
@@ -249,13 +259,54 @@ fun NapectApp(
                     val searchFiltered = if (vm.searchQuery.value.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
                     // Apply tag filter if selectedTagId is set
                     val tagFiltered = selectedTagId?.let { tid -> searchFiltered.filter { r -> r.tags.any { t -> t.id == tid } } } ?: searchFiltered
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // Debug helper: show list sizes for diagnosis (remove after debugging)
-                        Text(text = "Debug: total=${baseList.size}, search=${searchResults.size}, searchFiltered=${searchFiltered.size}, selectedTag=${selectedTagId ?: "All"}", modifier = Modifier.padding(8.dp))
+                    Column(modifier = Modifier.fillMaxSize()) {
                         // show any ViewModel error messages
                         val vmError by vm.error.collectAsState()
                         if (!vmError.isNullOrBlank()) Text(text = "Error: $vmError", modifier = Modifier.padding(8.dp))
-                        OutlinedTextField(value = vm.searchQuery.value, onValueChange = { vm.setSearchQuery(it) }, label = { androidx.compose.material3.Text("Hledat") }, modifier = Modifier.fillMaxWidth().padding(8.dp))
+                        // Material3 SearchBar: follows the Material Search pattern with suggestions
+                        val homeSearchActive = rememberSaveable { mutableStateOf(false) }
+                        SearchBar(
+                            query = vm.searchQuery.value,
+                            onQueryChange = { vm.setSearchQuery(it) },
+                            onSearch = { q -> vm.setSearchQuery(q); homeSearchActive.value = false },
+                            active = homeSearchActive.value,
+                            onActiveChange = { homeSearchActive.value = it },
+                            placeholder = { Text("Hledat") },
+                            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                            trailingIcon = {
+                                if (vm.searchQuery.value.isNotBlank()) {
+                                    IconButton(onClick = { vm.setSearchQuery("") }) { Icon(Icons.Filled.Close, contentDescription = "Vyčistit") }
+                                }
+                            }
+                        ) {
+                            // Show simple suggestions: when query is empty show recent (first few recipes),
+                            // otherwise show search results. Clicking a suggestion sets it as the query.
+                            val suggestions = if (vm.searchQuery.value.isBlank()) baseList.take(6) else searchResults
+                            // Make suggestion box expand to fill available width
+                            val suggestionModifier = Modifier.fillMaxWidth()
+                            LazyColumn(modifier = Modifier.heightIn(max = 600.dp)) {
+                                items(suggestions) { r ->
+                                    Card(modifier = suggestionModifier
+                                        .clickable {
+                                            // navigate directly to the recipe detail
+                                            try { navController.navigate("recipe/${r.id}") } catch (_: Exception) {}
+                                            vm.setSearchQuery(r.title)
+                                            homeSearchActive.value = false
+                                        }
+                                        .padding(8.dp)) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            r.photo?.let { bytes ->
+                                                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                                androidx.compose.foundation.Image(bitmap = bmp.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxWidth().height(120.dp), contentScale = ContentScale.Crop)
+                                            }
+                                            Text(r.title, style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
+                                            r.summary?.let { Text(it, modifier = Modifier.padding(top = 4.dp)) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                          // compute available tags (Category + Other) that are used by at least one recipe
                         val allTags by vm.allTags.collectAsState()
                         val usedTags = allTags.filter { tg -> (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) && baseList.any { r -> r.tags.any { t -> t.id == tg.id } } }
@@ -269,10 +320,46 @@ fun NapectApp(
                     val baseList = items.filter { it.isFavorite }
                     val searchFiltered = if (vm.searchQuery.value.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
                     val tagFiltered = selectedTagId?.let { tid -> searchFiltered.filter { r -> r.tags.any { t -> t.id == tid } } } ?: searchFiltered
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        // Debug helper: show list sizes for diagnosis (remove after debugging)
-                        Text(text = "Debug: total=${baseList.size}, search=${searchResults.size}, searchFiltered=${searchFiltered.size}, selectedTag=${selectedTagId ?: "All"}", modifier = Modifier.padding(8.dp))
-                        OutlinedTextField(value = vm.searchQuery.value, onValueChange = { vm.setSearchQuery(it) }, label = { androidx.compose.material3.Text("Hledat") }, modifier = Modifier.fillMaxWidth().padding(8.dp))
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        val favSearchActive = rememberSaveable { mutableStateOf(false) }
+                        SearchBar(
+                            query = vm.searchQuery.value,
+                            onQueryChange = { vm.setSearchQuery(it) },
+                            onSearch = { q -> vm.setSearchQuery(q); favSearchActive.value = false },
+                            active = favSearchActive.value,
+                            onActiveChange = { favSearchActive.value = it },
+                            placeholder = { Text("Hledat") },
+                            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                            trailingIcon = {
+                                if (vm.searchQuery.value.isNotBlank()) {
+                                    IconButton(onClick = { vm.setSearchQuery("") }) { Icon(Icons.Filled.Close, contentDescription = "Vyčistit") }
+                                }
+                            }
+                        ) {
+                            val suggestions = if (vm.searchQuery.value.isBlank()) baseList.take(6) else searchResults
+                            val suggestionModifier = Modifier.fillMaxWidth()
+                            LazyColumn(modifier = Modifier.heightIn(max = 600.dp)) {
+                                items(suggestions) { r ->
+                                    Card(modifier = suggestionModifier
+                                        .clickable {
+                                            try { navController.navigate("recipe/${r.id}") } catch (_: Exception) {}
+                                            vm.setSearchQuery(r.title)
+                                            favSearchActive.value = false
+                                        }
+                                        .padding(8.dp)) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            r.photo?.let { bytes ->
+                                                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                                androidx.compose.foundation.Image(bitmap = bmp.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxWidth().height(120.dp), contentScale = ContentScale.Crop)
+                                            }
+                                            Text(r.title, style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
+                                            r.summary?.let { Text(it, modifier = Modifier.padding(top = 4.dp)) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         val allTags by vm.allTags.collectAsState()
                         val usedTags = allTags.filter { tg -> (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) && baseList.any { r -> r.tags.any { t -> t.id == tg.id } } }
                         RecipeListScreen(recipes = tagFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = selectedTagId, onTagSelected = { selectedTagId = it }, onDelete = { id -> vm.deleteRecipe(id) })
