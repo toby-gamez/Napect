@@ -194,6 +194,7 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
         viewModelScope.launch {
             try {
                 val inserted = repo.ensureDefaultTags()
+                repo.migrateEnglishTagsToCzech()
                 _error.value = if (inserted > 0) "Restored $inserted default tags" else "Default tags already present"
             } catch (e: Exception) {
                 _error.value = e.message ?: "Failed to restore default tags"

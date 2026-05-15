@@ -14,7 +14,7 @@ enum class AppDestinations(
     val outlinedIcon: ImageVector,
     val filledIcon: ImageVector,
 ) {
-    HOME("Home", Icons.Outlined.Home, Icons.Filled.Home),
-    FAVORITES("Favorites", Icons.Outlined.FavoriteBorder, Icons.Filled.Favorite),
-    SETTINGS("Settings", Icons.Outlined.Settings, Icons.Filled.Settings),
+    HOME("Domů", Icons.Outlined.Home, Icons.Filled.Home),
+    FAVORITES("Oblíbené", Icons.Outlined.FavoriteBorder, Icons.Filled.Favorite),
+    SETTINGS("Nastavení", Icons.Outlined.Settings, Icons.Filled.Settings),
 }

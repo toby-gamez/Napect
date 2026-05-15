@@ -32,4 +32,7 @@ interface TagDao {
 
     @Query("DELETE FROM recipe_tags WHERE tag_id = :tagId")
     suspend fun deleteRecipeTagsByTagId(tagId: Long)
+
+    @Query("SELECT recipe_id FROM recipe_tags WHERE tag_id = :tagId")
+    suspend fun getRecipeIdsByTagId(tagId: Long): List<Long>
 }

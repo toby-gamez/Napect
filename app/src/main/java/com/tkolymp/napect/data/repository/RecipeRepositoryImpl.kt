@@ -139,15 +139,15 @@ class RecipeRepositoryImpl(
             if (estimatedMins <= 20) score-- else if (estimatedMins >= 90) score++
         }
         var difficulty = when {
-            score <= -1 -> "Easy"
-            score >= 1  -> "Hard"
-            else        -> "Medium"
+            score <= -1 -> "Jednoduché"
+            score >= 1  -> "Náročné"
+            else        -> "Střední"
         }
 
         val normalized = Normalizer.normalize(text.lowercase(), Normalizer.Form.NFD).replace("\\p{M}+".toRegex(), "")
         val normalizedWs = normalized.replace('-', ' ')
         if (normalizedWs.contains("no bake") || normalizedWs.contains("nobake") || normalizedWs.contains("nepecen")) {
-            difficulty = "Easy"
+            difficulty = "Jednoduché"
         }
 
         try { Log.d("RecipeRepo", "Inferred difficulty for '${recipe.title}': $difficulty (score=$score, ing=$ingCount, steps=$stepCount, mins=$estimatedMins)") } catch (_: Exception) { }
@@ -184,6 +184,68 @@ class RecipeRepositoryImpl(
             if (id > 0) inserted++
         }
         return inserted
+    }
+
+    override suspend fun migrateEnglishTagsToCzech(): Int {
+        val mapping = mapOf(
+            "Easy"         to "Jednoduché",
+            "Medium"       to "Střední",
+            "Hard"         to "Náročné",
+            "Quick"        to "Rychlé",
+            "Vegetarian"   to "Vegetariánské",
+            "Gluten-Free"  to "Bez lepku",
+            "Dairy-Free"   to "Bez mléka",
+            "Healthy"      to "Zdravé",
+            "Italian"      to "Italská",
+            "Chinese"      to "Čínská",
+            "Mexican"      to "Mexická",
+            "Indian"       to "Indická",
+            "French"       to "Francouzská",
+            "Czech"        to "Česká",
+            "American"     to "Americká",
+            "Japanese"     to "Japonská",
+            "Chicken"      to "Kuřecí",
+            "Beef"         to "Hovězí",
+            "Pork"         to "Vepřové",
+            "Pasta"        to "Těstoviny",
+            "Rice"         to "Rýže",
+            "Dessert"      to "Dezert",
+            "Soup"         to "Polévka",
+            "Main"         to "Hlavní chod",
+            "Breakfast"    to "Snídaně",
+            "Lunch"        to "Oběd",
+            "Dinner"       to "Večeře",
+            "Snack"        to "Svačina",
+            "Fried"        to "Smažené",
+            "Baked"        to "Pečené",
+            "Grilled"      to "Grilované",
+            "Steamed"      to "Dušené",
+            "Raw"          to "Syrové",
+            "Baking"       to "Pečení",
+            "Spicy"        to "Pálivé",
+            "Budget"       to "Ekonomické",
+            "Sweet"        to "Sladké",
+            "Savory"       to "Slané",
+            "Kid-Friendly" to "Pro děti",
+            "One Pot"      to "Jednohrnec",
+            "Meal Prep"    to "Příprava jídla",
+            "Holiday"      to "Sváteční",
+        )
+        var migrated = 0
+        for ((english, czech) in mapping) {
+            val oldTag = tagDao.getTagByName(english) ?: continue
+            val czechTag = tagDao.getTagByName(czech) ?: continue
+            val recipeIds = tagDao.getRecipeIdsByTagId(oldTag.id)
+            val existingCzechIds = tagDao.getRecipeIdsByTagId(czechTag.id).toSet()
+            val newRefs = recipeIds
+                .filter { it !in existingCzechIds }
+                .map { com.tkolymp.napect.data.local.entity.RecipeTagCrossRef(recipeId = it, tagId = czechTag.id) }
+            if (newRefs.isNotEmpty()) dao.insertRecipeTagCrossRefs(newRefs)
+            tagDao.deleteRecipeTagsByTagId(oldTag.id)
+            tagDao.deleteTagById(oldTag.id)
+            migrated++
+        }
+        return migrated
     }
 
     override suspend fun saveRecipeWithTags(recipe: Recipe, tagIds: List<Long>): Long {

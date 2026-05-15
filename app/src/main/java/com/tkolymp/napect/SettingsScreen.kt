@@ -61,7 +61,7 @@ fun SettingsScreen(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
-        Text("Theme")
+        Text("Motiv")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             ThemeMode.values().forEach { mode ->
                 val selected = prefs.themeMode == mode
@@ -71,18 +71,18 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.size(12.dp))
-        Text("Default servings: ${prefs.defaultServings}")
+        Text("Výchozí porce: ${prefs.defaultServings}")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { scope.launch { repo.setDefaultServings((prefs.defaultServings - 1).coerceAtLeast(1)) } }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Remove, contentDescription = "Decrease default servings") }
-            IconButton(onClick = { scope.launch { repo.setDefaultServings(prefs.defaultServings + 1) } }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Add, contentDescription = "Increase default servings") }
+            IconButton(onClick = { scope.launch { repo.setDefaultServings((prefs.defaultServings - 1).coerceAtLeast(1)) } }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Remove, contentDescription = "Snížit výchozí porce") }
+            IconButton(onClick = { scope.launch { repo.setDefaultServings(prefs.defaultServings + 1) } }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Add, contentDescription = "Zvýšit výchozí porce") }
         }
 
         Spacer(modifier = Modifier.size(16.dp))
-        Text("Tags", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+        Text("Štítky", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
         // group tags by group
         val grouped = allTags.groupBy { it.group }
         grouped.forEach { (group, tags) ->
-            Text(group.name, modifier = Modifier.padding(top = 8.dp))
+            Text(group.displayName, modifier = Modifier.padding(top = 8.dp))
             Column {
                 var pendingDeleteId by remember { mutableStateOf<Long?>(null) }
                 tags.forEach { t ->
@@ -94,7 +94,7 @@ fun SettingsScreen(
                             androidx.compose.material3.AssistChip(onClick = {}, label = { Text(t.name) })
                         }
                         Spacer(modifier = Modifier.size(8.dp))
-                        IconButton(onClick = { pendingDeleteId = t.id }) { Icon(imageVector = Icons.Filled.Delete, contentDescription = "Delete tag") }
+                        IconButton(onClick = { pendingDeleteId = t.id }) { Icon(imageVector = Icons.Filled.Delete, contentDescription = "Smazat štítek") }
                     }
                 }
 
@@ -107,11 +107,11 @@ fun SettingsScreen(
                             androidx.compose.material3.TextButton(onClick = {
                                 pendingDeleteId = null
                                 onDeleteTag(deleteId)
-                            }) { Text("Delete") }
+                            }) { Text("Smazat") }
                         },
-                        dismissButton = { androidx.compose.material3.TextButton(onClick = { pendingDeleteId = null }) { Text("Cancel") } },
-                        title = { Text("Delete tag?") },
-                        text = { Text("This will remove the tag from all recipes. Are you sure?") }
+                        dismissButton = { androidx.compose.material3.TextButton(onClick = { pendingDeleteId = null }) { Text("Zrušit") } },
+                        title = { Text("Smazat štítek?") },
+                        text = { Text("Tím odeberete štítek ze všech receptů. Jste si jistí?") }
                     )
                 }
             }
@@ -123,12 +123,12 @@ fun SettingsScreen(
         var expanded by remember { mutableStateOf(false) }
         var selectedGroup by remember { mutableStateOf(com.tkolymp.napect.domain.model.TagGroup.OTHER) }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(value = newTagName, onValueChange = { newTagName = it }, label = { Text("New tag name") }, modifier = Modifier.weight(1f))
+            OutlinedTextField(value = newTagName, onValueChange = { newTagName = it }, label = { Text("Název nového štítku") }, modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = { expanded = true }) { Text(selectedGroup.name) }
+            Button(onClick = { expanded = true }) { Text(selectedGroup.displayName) }
             androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 TagGroup.values().forEach { g ->
-                    androidx.compose.material3.DropdownMenuItem(text = { Text(g.name) }, onClick = { selectedGroup = g; expanded = false })
+                    androidx.compose.material3.DropdownMenuItem(text = { Text(g.displayName) }, onClick = { selectedGroup = g; expanded = false })
                 }
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -137,12 +137,12 @@ fun SettingsScreen(
                     onCreateTag(newTagName.trim(), selectedGroup)
                     newTagName = ""
                 }
-            }) { Text("Create tag") }
+            }) { Text("Vytvořit štítek") }
         }
 
         Spacer(modifier = Modifier.size(12.dp))
         Button(onClick = { onRestoreDefaults() }, modifier = Modifier.padding(top = 8.dp)) {
-            Text("Restore default tags")
+            Text("Obnovit výchozí štítky")
         }
     }
 }

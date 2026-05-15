@@ -157,7 +157,7 @@ fun AddRecipeScreen(
                 }
                 importVm?.importImage(uri)
             } catch (e: Exception) {
-                Toast.makeText(context, "Failed to read image: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Nepodařilo se načíst obrázek: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -193,15 +193,15 @@ fun AddRecipeScreen(
                 }
             } catch (_: Exception) { }
             takePictureLauncher.launch(uri)
-            Toast.makeText(context, "Opening camera…", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Otevírám fotoaparát…", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            Toast.makeText(context, "Failed to open camera: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Nepodařilo se otevřít fotoaparát: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
         }
     }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(RequestPermission()) { granted ->
         if (granted) launchCameraInternal()
-        else Toast.makeText(context, "Camera permission is required to take photos", Toast.LENGTH_SHORT).show()
+        else Toast.makeText(context, "Pro focení je nutné povolit přístup k fotoaparátu", Toast.LENGTH_SHORT).show()
     }
 
     val openCameraAction: () -> Unit = {
@@ -212,7 +212,7 @@ fun AddRecipeScreen(
                 cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
             }
         } catch (e: Exception) {
-            Toast.makeText(context, "Failed to open camera: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Nepodařilo se otevřít fotoaparát: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -284,7 +284,7 @@ fun AddRecipeScreen(
                     } catch (_: Exception) { }
                 }
                 is UrlImportState.Error -> {
-                    Toast.makeText(context, "Import failed: ${(importState as UrlImportState.Error).message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Import se nezdařil: ${(importState as UrlImportState.Error).message}", Toast.LENGTH_LONG).show()
                 }
                 else -> {}
             }
@@ -342,39 +342,39 @@ fun AddRecipeScreen(
         // Photo
         if (photoBytes != null) {
             val bmp = BitmapFactory.decodeByteArray(photoBytes, 0, photoBytes!!.size)
-            Image(bitmap = bmp.asImageBitmap(), contentDescription = "Selected photo", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
-            TextButton(onClick = { photoBytes = null }, modifier = Modifier.padding(top = 8.dp)) { Text("Remove Photo") }
+            Image(bitmap = bmp.asImageBitmap(), contentDescription = "Vybraná fotografie", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
+            TextButton(onClick = { photoBytes = null }, modifier = Modifier.padding(top = 8.dp)) { Text("Odebrat fotografii") }
         } else {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Add a photo using the + menu in the top bar", modifier = Modifier.weight(1f))
+                Text("Přidejte fotografii pomocí nabídky + v horní liště", modifier = Modifier.weight(1f))
                 if (importVm != null) {
-                    Button(onClick = { showUrlEntry = !showUrlEntry }) { Text("Import URL") }
+                    Button(onClick = { showUrlEntry = !showUrlEntry }) { Text("Importovat odkaz") }
                 }
             }
             if (showUrlEntry) {
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = urlText, onValueChange = { urlText = it }, label = { Text("URL") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = urlText, onValueChange = { urlText = it }, label = { Text("Odkaz") }, modifier = Modifier.weight(1f))
                     Button(onClick = {
                         if (urlText.isNotBlank()) {
                             try {
                                 importVm?.fetchUrl(urlText)
                                 showUrlEntry = false
                                 urlText = ""
-                                Toast.makeText(context, "Importing URL…", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Importuji odkaz…", Toast.LENGTH_SHORT).show()
                             } catch (e: Exception) {
-                                Toast.makeText(context, "Failed to import URL: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Nepodařilo se importovat odkaz: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
                             }
                         } else {
-                            Toast.makeText(context, "Please enter a URL", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Zadejte prosím odkaz", Toast.LENGTH_SHORT).show()
                         }
-                    }) { Text("Import") }
+                    }) { Text("Importovat") }
                 }
             }
         }
 
         // Title + voice
         Row(modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.weight(1f))
+            OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Název") }, modifier = Modifier.weight(1f))
             VoiceInputButton(onResult = { text ->
                 val lines = text.lines().map { it.trim() }.filter { it.isNotBlank() }
                 if (title.isBlank() && lines.isNotEmpty()) title = lines.first()
@@ -398,24 +398,24 @@ fun AddRecipeScreen(
             })
         }
 
-        OutlinedTextField(value = summary, onValueChange = { summary = it }, label = { Text("Summary") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+        OutlinedTextField(value = summary, onValueChange = { summary = it }, label = { Text("Popis") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
 
         // Servings
         Spacer(modifier = Modifier.size(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (servingsBase > 1) servingsBase-- }, modifier = Modifier.size(40.dp)) {
-                Icon(imageVector = Icons.Filled.Remove, contentDescription = "Decrease base servings")
+                Icon(imageVector = Icons.Filled.Remove, contentDescription = "Snížit základní porce")
             }
-            Text("  Base servings: $servingsBase  ", modifier = Modifier.padding(horizontal = 8.dp))
+            Text("  Základní porce: $servingsBase  ", modifier = Modifier.padding(horizontal = 8.dp))
             IconButton(onClick = { servingsBase++ }, modifier = Modifier.size(40.dp)) {
-                Icon(imageVector = Icons.Filled.Add, contentDescription = "Increase base servings")
+                Icon(imageVector = Icons.Filled.Add, contentDescription = "Zvýšit základní porce")
             }
         }
 
         // ── Ingredient sections ──────────────────────────────────────────────
 
         Spacer(modifier = Modifier.size(8.dp))
-        Text("Ingredients", style = MaterialTheme.typography.titleMedium)
+        Text("Ingredience", style = MaterialTheme.typography.titleMedium)
 
         ingredientGroups.forEachIndexed { groupIndex, group ->
             // Named sub-section header (only for groups added beyond the default)
@@ -428,12 +428,12 @@ fun AddRecipeScreen(
                     OutlinedTextField(
                         value = group.name.value,
                         onValueChange = { group.name.value = it },
-                        label = { Text("Section name (e.g. Dough, Topping)") },
+                        label = { Text("Název sekce (např. Těsto, Poleva)") },
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(onClick = { ingredientGroups.removeAt(groupIndex) }) {
-                        Icon(imageVector = Icons.Filled.Delete, contentDescription = "Remove section")
+                        Icon(imageVector = Icons.Filled.Delete, contentDescription = "Odebrat sekci")
                     }
                 }
             }
@@ -445,9 +445,9 @@ fun AddRecipeScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 ) {
-                    OutlinedTextField(value = ing.amount.value, onValueChange = { ing.amount.value = it }, label = { Text("Amount") }, singleLine = true, modifier = Modifier.width(80.dp))
-                    OutlinedTextField(value = ing.unit.value, onValueChange = { ing.unit.value = it }, label = { Text("Unit") }, singleLine = true, modifier = Modifier.width(72.dp))
-                    OutlinedTextField(value = ing.name.value, onValueChange = { ing.name.value = it }, label = { Text("Ingredient") }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = ing.amount.value, onValueChange = { ing.amount.value = it }, label = { Text("Množství") }, singleLine = true, modifier = Modifier.width(80.dp))
+                    OutlinedTextField(value = ing.unit.value, onValueChange = { ing.unit.value = it }, label = { Text("Jednotka") }, singleLine = true, modifier = Modifier.width(72.dp))
+                    OutlinedTextField(value = ing.name.value, onValueChange = { ing.name.value = it }, label = { Text("Ingredience") }, singleLine = true, modifier = Modifier.weight(1f))
                     IconButton(
                         onClick = {
                             if (group.ingredients.size > 1) group.ingredients.removeAt(ingIndex)
@@ -455,34 +455,34 @@ fun AddRecipeScreen(
                         },
                         modifier = Modifier.size(40.dp)
                     ) {
-                        Icon(imageVector = Icons.Filled.Delete, contentDescription = "Remove ingredient")
+                        Icon(imageVector = Icons.Filled.Delete, contentDescription = "Odebrat ingredienci")
                     }
                 }
             }
 
             TextButton(onClick = { group.ingredients.add(IngredientInputState()) }, modifier = Modifier.padding(top = 4.dp)) {
                 Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Text(" Add Ingredient")
+                Text(" Přidat ingredienci")
             }
         }
 
         // Add section button
         Button(onClick = { ingredientGroups.add(IngredientGroupState("").also { it.ingredients.add(IngredientInputState()) }) }, modifier = Modifier.padding(top = 8.dp)) {
             Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text(" Add Section")
+            Text(" Přidat sekci")
         }
 
         // ── Tags ─────────────────────────────────────────────────────────────
 
         Spacer(modifier = Modifier.size(12.dp))
-        Text("Tags", fontWeight = FontWeight.Bold)
+        Text("Štítky", fontWeight = FontWeight.Bold)
 
         val grouped = availableTags.groupBy { it.group }
         val availableNamesLower = availableTags.map { it.name.lowercase() }.toSet()
         val extraSuggested = suggestedTagsList.filter { it.name.lowercase() !in availableNamesLower }
 
         grouped.forEach { (group, tags) ->
-            Text(group.name, modifier = Modifier.padding(top = 8.dp))
+            Text(group.displayName, modifier = Modifier.padding(top = 8.dp))
             FlowRow(modifier = Modifier.fillMaxWidth()) {
                 for (t in tags) {
                     val checked = if (userTouchedTags.value) selectedTagIds.contains(t.id)
@@ -501,7 +501,7 @@ fun AddRecipeScreen(
         }
 
         if (extraSuggested.isNotEmpty()) {
-            Text("Suggested", modifier = Modifier.padding(top = 8.dp))
+            Text("Navrhované", modifier = Modifier.padding(top = 8.dp))
             FlowRow(modifier = Modifier.fillMaxWidth()) {
                 for (st in extraSuggested) {
                     val checked = if (userTouchedTags.value) selectedTagIds.contains(st.id) else true
@@ -517,19 +517,19 @@ fun AddRecipeScreen(
         // ── Steps ────────────────────────────────────────────────────────────
 
         Spacer(modifier = Modifier.size(12.dp))
-        Text("Steps")
+        Text("Postup")
         Column(modifier = Modifier.fillMaxWidth()) {
             steps.forEachIndexed { index, step ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                    OutlinedTextField(value = step, onValueChange = { steps[index] = it }, label = { Text("Step ${index + 1}") }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = step, onValueChange = { steps[index] = it }, label = { Text("Krok ${index + 1}") }, modifier = Modifier.weight(1f))
                     Spacer(modifier = Modifier.width(8.dp))
                     IconButton(onClick = { if (steps.size > 1) steps.removeAt(index) else steps[index] = "" }, modifier = Modifier.size(40.dp)) {
-                        Icon(imageVector = Icons.Filled.Delete, contentDescription = "Remove step")
+                        Icon(imageVector = Icons.Filled.Delete, contentDescription = "Odebrat krok")
                     }
                 }
             }
         }
-        Button(onClick = { steps.add("") }, modifier = Modifier.padding(top = 8.dp)) { Text("Add Step") }
+        Button(onClick = { steps.add("") }, modifier = Modifier.padding(top = 8.dp)) { Text("Přidat krok") }
 
         // ── Save / Cancel ────────────────────────────────────────────────────
 
@@ -567,8 +567,8 @@ fun AddRecipeScreen(
                         finalTagIds
                     )
                 }
-            }) { Text("Save") }
-            TextButton(onClick = onCancel) { Text("Cancel") }
+            }) { Text("Uložit") }
+            TextButton(onClick = onCancel) { Text("Zrušit") }
         }
     }
 }

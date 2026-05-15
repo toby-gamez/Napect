@@ -47,7 +47,9 @@ class MainActivity : ComponentActivity() {
             try {
                 // repository's ensureDefaultTags is available via database-backed repo
                 // call directly on a temporary RecipeRepositoryImpl to seed defaults
-                com.tkolymp.napect.data.repository.RecipeRepositoryImpl(db.recipeDao(), db.tagDao()).ensureDefaultTags()
+                val repo = com.tkolymp.napect.data.repository.RecipeRepositoryImpl(db.recipeDao(), db.tagDao())
+                repo.ensureDefaultTags()
+                repo.migrateEnglishTagsToCzech()
             } catch (_: Exception) { }
         }
 

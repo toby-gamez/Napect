@@ -19,4 +19,5 @@ interface RecipeRepository {
     suspend fun saveRecipeWithTags(recipe: Recipe, tagIds: List<Long>): Long
     suspend fun deleteTag(id: Long)
     suspend fun ensureDefaultTags(): Int
+    suspend fun migrateEnglishTagsToCzech(): Int
 }

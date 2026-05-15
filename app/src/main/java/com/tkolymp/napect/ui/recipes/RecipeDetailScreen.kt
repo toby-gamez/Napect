@@ -62,7 +62,7 @@ fun RecipeDetailScreen(
     Column(modifier = modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
         recipe.photo?.let { bytes ->
             val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-            Image(bitmap = bmp.asImageBitmap(), contentDescription = "Recipe photo", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
+            Image(bitmap = bmp.asImageBitmap(), contentDescription = "Foto receptu", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
         }
 
         // Title row
@@ -71,19 +71,19 @@ fun RecipeDetailScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (onToggleFavorite != null) {
                     IconButton(onClick = { onToggleFavorite(recipe.id, !recipe.isFavorite) }) {
-                        Icon(imageVector = if (recipe.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = "Favorite")
+                        Icon(imageVector = if (recipe.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = "Oblíbené")
                     }
                 } else {
-                    Icon(imageVector = if (recipe.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = "Favorite")
+                    Icon(imageVector = if (recipe.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = "Oblíbené")
                 }
                 if (onEdit != null) {
-                    IconButton(onClick = { onEdit(recipe.id) }) { Icon(imageVector = Icons.Filled.Edit, contentDescription = "Edit recipe") }
+                    IconButton(onClick = { onEdit(recipe.id) }) { Icon(imageVector = Icons.Filled.Edit, contentDescription = "Upravit recept") }
                 }
                 if (onDelete != null) {
-                    IconButton(onClick = { showConfirmDelete = true }) { Icon(imageVector = Icons.Filled.Delete, contentDescription = "Delete recipe") }
+                    IconButton(onClick = { showConfirmDelete = true }) { Icon(imageVector = Icons.Filled.Delete, contentDescription = "Smazat recept") }
                 }
                 if (onClose != null) {
-                    IconButton(onClick = onClose) { Text("Close") }
+                    IconButton(onClick = onClose) { Text("Zavřít") }
                 }
             }
         }
@@ -107,14 +107,14 @@ fun RecipeDetailScreen(
         // Servings scaler
         Spacer(modifier = Modifier.size(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { if (servings > 1) servings-- }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Remove, contentDescription = "Decrease servings") }
-            Text("  Servings: $servings  ", modifier = Modifier.padding(horizontal = 8.dp))
-            IconButton(onClick = { servings++ }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Add, contentDescription = "Increase servings") }
+            IconButton(onClick = { if (servings > 1) servings-- }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Remove, contentDescription = "Snížit porce") }
+            Text("  Porce: $servings  ", modifier = Modifier.padding(horizontal = 8.dp))
+            IconButton(onClick = { servings++ }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Add, contentDescription = "Zvýšit porce") }
         }
 
         // ── Ingredients ──────────────────────────────────────────────────────────
         Spacer(modifier = Modifier.size(12.dp))
-        Text("Ingredients", style = MaterialTheme.typography.titleMedium)
+        Text("Ingredience", style = MaterialTheme.typography.titleMedium)
 
         recipe.ingredientGroups.forEach { group ->
             // Only show a sub-heading when the group has a custom name (e.g. "Dough", "Topping")
@@ -145,7 +145,7 @@ fun RecipeDetailScreen(
 
         // ── Steps ────────────────────────────────────────────────────────────
         Spacer(modifier = Modifier.size(4.dp))
-        Text("Steps", style = MaterialTheme.typography.titleMedium)
+        Text("Postup", style = MaterialTheme.typography.titleMedium)
         Column {
             recipe.steps.forEach { step ->
                 Text("${step.stepNumber}. ${step.instruction}", modifier = Modifier.padding(top = 6.dp))
@@ -157,13 +157,13 @@ fun RecipeDetailScreen(
         AlertDialog(
             onDismissRequest = { showConfirmDelete = false },
             confirmButton = {
-                TextButton(onClick = { showConfirmDelete = false; onDelete?.invoke(recipe.id) }) { Text("Delete") }
+                TextButton(onClick = { showConfirmDelete = false; onDelete?.invoke(recipe.id) }) { Text("Smazat") }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirmDelete = false }) { Text("Cancel") }
+                TextButton(onClick = { showConfirmDelete = false }) { Text("Zrušit") }
             },
-            title = { Text("Delete recipe?") },
-            text = { Text("This will permanently delete the recipe.") }
+            title = { Text("Smazat recept?") },
+            text = { Text("Recept bude trvale smazán.") }
         )
     }
 }

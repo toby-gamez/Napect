@@ -58,7 +58,7 @@ fun RecipeListScreen(
         Row(modifier = Modifier.horizontalScroll(scrollState).padding(bottom = 8.dp)) {
             // show an "All" chip
             val allSelected = selectedTagId == null
-            FilterChip(selected = allSelected, onClick = { onTagSelected(null) }, label = { Text("All") })
+            FilterChip(selected = allSelected, onClick = { onTagSelected(null) }, label = { Text("Vše") })
 
             // Only show CATEGORY and OTHER tags from the provided availableTags list
             val tagCandidates = availableTags.filter { it.group == TagGroup.CATEGORY || it.group == TagGroup.OTHER }
@@ -79,7 +79,7 @@ fun RecipeListScreen(
                             Text(text = "${r.title} — ${r.category.name}", modifier = Modifier.align(androidx.compose.ui.Alignment.CenterStart))
                             if (onDelete != null) {
                                 androidx.compose.material3.IconButton(onClick = { onDelete(r.id) }, modifier = Modifier.align(androidx.compose.ui.Alignment.CenterEnd).then(Modifier.size(40.dp))) {
-                                    androidx.compose.material3.Icon(imageVector = androidx.compose.material.icons.Icons.Filled.Delete, contentDescription = "Delete recipe")
+                                    androidx.compose.material3.Icon(imageVector = androidx.compose.material.icons.Icons.Filled.Delete, contentDescription = "Smazat recept")
                                 }
                             }
                         }

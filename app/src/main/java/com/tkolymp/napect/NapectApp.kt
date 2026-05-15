@@ -156,8 +156,8 @@ fun NapectApp(
             CenterAlignedTopAppBar(
                 title = {
                     val titleText = when {
-                        currentRoute == "add" -> "Add Recipe"
-                        currentRoute?.startsWith("recipe/") == true || currentRoute == "recipe/{id}" -> "Recipe"
+                        currentRoute == "add" -> "Přidat recept"
+                        currentRoute?.startsWith("recipe/") == true || currentRoute == "recipe/{id}" -> "Recept"
                         currentRoute != null && AppDestinations.values().any { it.name == currentRoute } -> AppDestinations.valueOf(currentRoute).label
                         else -> selectedDestination.label
                     }
@@ -171,7 +171,7 @@ fun NapectApp(
                     val isTopLevel = currentRoute in topLevelRoutes
                     if (!isTopLevel && navController.previousBackStackEntry != null) {
                         IconButton(onClick = { navController.navigateUp() }) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.Filled.ArrowBack, contentDescription = "Zpět")
                         }
                     }
                 }
@@ -180,15 +180,15 @@ fun NapectApp(
 
                     if (currentRoute == "add") {
                         IconButton(onClick = { menuExpanded = true }) {
-                            Icon(Icons.Filled.Add, contentDescription = "Actions")
+                            Icon(Icons.Filled.Add, contentDescription = "Akce")
                         }
 
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                            DropdownMenuItem(text = { Text("Pick Photo") }, onClick = {
+                            DropdownMenuItem(text = { Text("Vybrat fotografii") }, onClick = {
                                 menuExpanded = false
                                 try { pickActionState.value?.invoke() } catch (_: Exception) { }
                             })
-                            DropdownMenuItem(text = { Text("Open Camera") }, onClick = {
+                            DropdownMenuItem(text = { Text("Otevřít fotoaparát") }, onClick = {
                                 menuExpanded = false
                                 try { cameraActionState.value?.invoke() } catch (_: Exception) { }
                             })
@@ -215,7 +215,7 @@ fun NapectApp(
                         }
                         Icon(
                             painter = rememberVectorPainter(imageVector),
-                            contentDescription = if (fabMenuExpanded) "Close menu" else "Add recipe",
+                            contentDescription = if (fabMenuExpanded) "Zavřít nabídku" else "Přidat recept",
                             modifier = Modifier.animateIcon({ checkedProgress })
                         )
                     }
@@ -226,7 +226,7 @@ fun NapectApp(
                         fabMenuExpanded = false
                         showUrlDialog = true
                     },
-                    text = { Text("Enter URL", style = MaterialTheme.typography.bodyLarge) },
+                    text = { Text("Zadat odkaz", style = MaterialTheme.typography.bodyLarge) },
                     icon = { Icon(Icons.Filled.Link, contentDescription = null) },
                 )
                 FloatingActionButtonMenuItem(
@@ -234,7 +234,7 @@ fun NapectApp(
                         fabMenuExpanded = false
                         navController.navigate("add")
                     },
-                    text = { Text("Write by hand", style = MaterialTheme.typography.bodyLarge) },
+                    text = { Text("Napsat ručně", style = MaterialTheme.typography.bodyLarge) },
                     icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                 )
             }
@@ -275,8 +275,8 @@ fun NapectApp(
                         // show any ViewModel error messages
                         val vmError by vm.error.collectAsState()
                         if (!vmError.isNullOrBlank()) Text(text = "Error: $vmError", modifier = Modifier.padding(8.dp))
-                        OutlinedTextField(value = vm.searchQuery.value, onValueChange = { vm.setSearchQuery(it) }, label = { androidx.compose.material3.Text("Search") }, modifier = Modifier.fillMaxWidth().padding(8.dp))
-                        // compute available tags (Category + Other) that are used by at least one recipe
+                        OutlinedTextField(value = vm.searchQuery.value, onValueChange = { vm.setSearchQuery(it) }, label = { androidx.compose.material3.Text("Hledat") }, modifier = Modifier.fillMaxWidth().padding(8.dp))
+                         // compute available tags (Category + Other) that are used by at least one recipe
                         val allTags by vm.allTags.collectAsState()
                         val usedTags = allTags.filter { tg -> (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) && baseList.any { r -> r.tags.any { t -> t.id == tg.id } } }
                         RecipeListScreen(recipes = tagFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = selectedTagId, onTagSelected = { selectedTagId = it }, onDelete = { id -> vm.deleteRecipe(id) })
@@ -292,7 +292,7 @@ fun NapectApp(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         // Debug helper: show list sizes for diagnosis (remove after debugging)
                         Text(text = "Debug: total=${baseList.size}, search=${searchResults.size}, searchFiltered=${searchFiltered.size}, selectedTag=${selectedTagId ?: "All"}", modifier = Modifier.padding(8.dp))
-                        OutlinedTextField(value = vm.searchQuery.value, onValueChange = { vm.setSearchQuery(it) }, label = { androidx.compose.material3.Text("Search") }, modifier = Modifier.fillMaxWidth().padding(8.dp))
+                        OutlinedTextField(value = vm.searchQuery.value, onValueChange = { vm.setSearchQuery(it) }, label = { androidx.compose.material3.Text("Hledat") }, modifier = Modifier.fillMaxWidth().padding(8.dp))
                         val allTags by vm.allTags.collectAsState()
                         val usedTags = allTags.filter { tg -> (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) && baseList.any { r -> r.tags.any { t -> t.id == tg.id } } }
                         RecipeListScreen(recipes = tagFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = selectedTagId, onTagSelected = { selectedTagId = it }, onDelete = { id -> vm.deleteRecipe(id) })
@@ -399,13 +399,13 @@ fun NapectApp(
                         showUrlDialog = false
                         fabUrlText = ""
                     },
-                    title = { Text("Import from URL") },
+                    title = { Text("Importovat z odkazu") },
                     text = {
                         val clipboardManager = LocalClipboardManager.current
                         OutlinedTextField(
                             value = fabUrlText,
                             onValueChange = { fabUrlText = it },
-                            label = { Text("Recipe URL") },
+                            label = { Text("Odkaz na recept") },
                             placeholder = { Text("https://...") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
@@ -418,7 +418,7 @@ fun NapectApp(
                                     val clip = clipboardManager.getText()?.text
                                     if (!clip.isNullOrBlank()) fabUrlText = clip
                                 }) {
-                                    Icon(Icons.Filled.ContentPaste, contentDescription = "Paste")
+                                    Icon(Icons.Filled.ContentPaste, contentDescription = "Vložit")
                                 }
                             }
                         )
@@ -435,13 +435,13 @@ fun NapectApp(
                                 navController.navigate("add")
                             },
                             enabled = fabUrlText.isNotBlank()
-                        ) { Text("Import") }
+                        ) { Text("Importovat") }
                     },
                     dismissButton = {
                         TextButton(onClick = {
                             showUrlDialog = false
                             fabUrlText = ""
-                        }) { Text("Cancel") }
+                        }) { Text("Zrušit") }
                     }
                 )
             }

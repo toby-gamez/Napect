@@ -1,12 +1,12 @@
 package com.tkolymp.napect.domain.model
 
-enum class TagGroup {
-    DIFFICULTY,
-    TIME,
-    DIET,
-    CUISINE,
-    METHOD,
-    MEAL,
-    CATEGORY,
-    OTHER
+enum class TagGroup(val displayName: String) {
+    DIFFICULTY("Obtížnost"),
+    TIME("Čas"),
+    DIET("Dieta"),
+    CUISINE("Kuchyně"),
+    METHOD("Způsob přípravy"),
+    MEAL("Jídlo"),
+    CATEGORY("Kategorie"),
+    OTHER("Ostatní")
 }
