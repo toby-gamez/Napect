@@ -123,7 +123,7 @@ fun SettingsScreen(
         var expanded by remember { mutableStateOf(false) }
         var selectedGroup by remember { mutableStateOf(com.tkolymp.napect.domain.model.TagGroup.OTHER) }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(value = newTagName, onValueChange = { newTagName = it }, label = { Text("Název nového štítku") }, modifier = Modifier.weight(1f))
+            OutlinedTextField(value = newTagName, onValueChange = { newTagName = it }, label = { Text("Štítek") }, modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = { expanded = true }) { Text(selectedGroup.displayName) }
             androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {

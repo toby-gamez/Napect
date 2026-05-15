@@ -62,7 +62,7 @@ fun RecipeListScreen(
     onDelete: ((Long) -> Unit)? = null
 ) {
     // Keep a small outer padding and apply scaffold contentPadding to the LazyColumn
-    Column(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
         // tag filter row (replaces category chips). Show tags from Category and Other groups
         val scrollState = rememberScrollState()
         Row(modifier = Modifier.horizontalScroll(scrollState).padding(bottom = 8.dp)) {

@@ -263,7 +263,7 @@ fun NapectApp(
                     Column(modifier = Modifier.fillMaxSize()) {
                         // show any ViewModel error messages
                         val vmError by vm.error.collectAsState()
-                        if (!vmError.isNullOrBlank()) Text(text = "Error: $vmError", modifier = Modifier.padding(8.dp))
+                        if (!vmError.isNullOrBlank()) Text(text = "Error: $vmError")
                         // Material3 SearchBar: follows the Material Search pattern with suggestions
                         val homeSearchActive = rememberSaveable { mutableStateOf(false) }
                         var homeLocalQuery by remember { mutableStateOf(searchQuery) }
@@ -278,7 +278,7 @@ fun NapectApp(
                             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(8.dp),
+                                .padding(horizontal = 8.dp),
                             trailingIcon = {
                                 if (searchQuery.isNotBlank()) {
                                     IconButton(onClick = { vm.setSearchQuery("") }) { Icon(Icons.Filled.Close, contentDescription = "Vyčistit") }
@@ -339,7 +339,7 @@ fun NapectApp(
                             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(8.dp),
+                                .padding(horizontal = 8.dp),
                             trailingIcon = {
                                 if (searchQuery.isNotBlank()) {
                                     IconButton(onClick = { vm.setSearchQuery("") }) { Icon(Icons.Filled.Close, contentDescription = "Vyčistit") }
