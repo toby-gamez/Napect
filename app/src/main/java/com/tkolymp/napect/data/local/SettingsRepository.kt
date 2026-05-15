@@ -20,6 +20,7 @@ class SettingsRepository(private val context: Context) {
     private object Keys {
         val THEME = stringPreferencesKey("theme_mode")
         val DEFAULT_SERVINGS = intPreferencesKey("default_servings")
+        fun plannedCookKey(id: Long) = stringPreferencesKey("planned_cook_\$id")
     }
 
     val prefsFlow: Flow<UserPreferences> = context.dataStore.data.map { prefs ->
@@ -34,5 +35,13 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setDefaultServings(value: Int) {
         context.dataStore.edit { prefs -> prefs[Keys.DEFAULT_SERVINGS] = value }
+    }
+
+    suspend fun setPlannedCookDate(recipeId: Long, epochMillis: Long) {
+        context.dataStore.edit { prefs -> prefs[Keys.plannedCookKey(recipeId)] = epochMillis.toString() }
+    }
+
+    fun getPlannedCookDateFlow(recipeId: Long) = context.dataStore.data.map { prefs ->
+        prefs[Keys.plannedCookKey(recipeId)]?.let { str -> try { str.toLong() } catch (_: Exception) { null } }
     }
 }

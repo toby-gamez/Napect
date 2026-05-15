@@ -337,39 +337,13 @@ fun AddRecipeScreen(
 
     // ─── UI ───────────────────────────────────────────────────────────────────
 
-    Column(modifier = modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
+    Column(modifier = modifier.padding(horizontal = 16.dp).verticalScroll(rememberScrollState())) {
 
         // Photo
         if (photoBytes != null) {
             val bmp = BitmapFactory.decodeByteArray(photoBytes, 0, photoBytes!!.size)
             Image(bitmap = bmp.asImageBitmap(), contentDescription = "Vybraná fotografie", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
             TextButton(onClick = { photoBytes = null }, modifier = Modifier.padding(top = 8.dp)) { Text("Odebrat fotografii") }
-        } else {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Přidejte fotografii pomocí nabídky + v horní liště", modifier = Modifier.weight(1f))
-                if (importVm != null) {
-                    Button(onClick = { showUrlEntry = !showUrlEntry }) { Text("Importovat odkaz") }
-                }
-            }
-            if (showUrlEntry) {
-                Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = urlText, onValueChange = { urlText = it }, label = { Text("Odkaz") }, modifier = Modifier.weight(1f))
-                    Button(onClick = {
-                        if (urlText.isNotBlank()) {
-                            try {
-                                importVm?.fetchUrl(urlText)
-                                showUrlEntry = false
-                                urlText = ""
-                                Toast.makeText(context, "Importuji odkaz…", Toast.LENGTH_SHORT).show()
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "Nepodařilo se importovat odkaz: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
-                            }
-                        } else {
-                            Toast.makeText(context, "Zadejte prosím odkaz", Toast.LENGTH_SHORT).show()
-                        }
-                    }) { Text("Importovat") }
-                }
-            }
         }
 
         // Title + voice
@@ -445,9 +419,9 @@ fun AddRecipeScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 ) {
-                    OutlinedTextField(value = ing.amount.value, onValueChange = { ing.amount.value = it }, label = { Text("Množství") }, singleLine = true, modifier = Modifier.width(80.dp))
-                    OutlinedTextField(value = ing.unit.value, onValueChange = { ing.unit.value = it }, label = { Text("Jednotka") }, singleLine = true, modifier = Modifier.width(72.dp))
-                    OutlinedTextField(value = ing.name.value, onValueChange = { ing.name.value = it }, label = { Text("Ingredience") }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = ing.amount.value, onValueChange = { ing.amount.value = it }, label = { Text("0") }, singleLine = true, modifier = Modifier.width(80.dp))
+                    OutlinedTextField(value = ing.unit.value, onValueChange = { ing.unit.value = it }, label = { Text("g") }, singleLine = true, modifier = Modifier.width(72.dp))
+                    OutlinedTextField(value = ing.name.value, onValueChange = { ing.name.value = it }, label = { Text("jméno") }, singleLine = true, modifier = Modifier.weight(1f))
                     IconButton(
                         onClick = {
                             if (group.ingredients.size > 1) group.ingredients.removeAt(ingIndex)

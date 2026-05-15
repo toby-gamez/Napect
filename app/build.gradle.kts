@@ -16,7 +16,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.tkolymp.napect"
+        applicationId = "com.tobiso.napect"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

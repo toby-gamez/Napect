@@ -48,6 +48,7 @@ import com.tkolymp.napect.ui.recipes.AddRecipeScreen
 import com.tkolymp.napect.ui.recipes.RecipeListScreen
 import com.tkolymp.napect.ui.recipes.RecipeViewModel
 import com.tkolymp.napect.ui.recipes.RecipeDetailScreen
+import com.tkolymp.napect.ui.recipes.MakeScreen
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -98,6 +99,8 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.ui.graphics.Color
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -130,6 +133,8 @@ fun NapectApp(
     // expose them in a global actions menu.
     val pickActionState = remember { mutableStateOf<(() -> Unit)?>(null) }
     val cameraActionState = remember { mutableStateOf<(() -> Unit)?>(null) }
+    // Optional composable slot for additional top-bar actions (e.g. recipe favorite)
+    val detailActionsState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
     // Top level destinations: these should never show the back arrow
     val topLevelRoutes = setOf(
         AppDestinations.HOME.name,
@@ -144,6 +149,8 @@ fun NapectApp(
         }
         // collapse the FAB speed-dial on any navigation
         fabMenuExpanded = false
+        // clear any detail actions when route changes
+        detailActionsState.value = null
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -189,16 +196,26 @@ fun NapectApp(
                         }
 
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                            DropdownMenuItem(text = { Text("Vybrat fotografii") }, onClick = {
-                                menuExpanded = false
-                                try { pickActionState.value?.invoke() } catch (_: Exception) { }
-                            })
-                            DropdownMenuItem(text = { Text("Otevřít fotoaparát") }, onClick = {
-                                menuExpanded = false
-                                try { cameraActionState.value?.invoke() } catch (_: Exception) { }
-                            })
+                            DropdownMenuItem(
+                                text = { Text("Vybrat fotografii") },
+                                leadingIcon = { Icon(imageVector = Icons.Filled.Image, contentDescription = null) },
+                                onClick = {
+                                    menuExpanded = false
+                                    try { pickActionState.value?.invoke() } catch (_: Exception) { }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Otevřít fotoaparát") },
+                                leadingIcon = { Icon(imageVector = Icons.Filled.CameraAlt, contentDescription = null) },
+                                onClick = {
+                                    menuExpanded = false
+                                    try { cameraActionState.value?.invoke() } catch (_: Exception) { }
+                                }
+                            )
                         }
                     }
+                    // Render any registered detail actions (e.g. recipe favorite)
+                    detailActionsState.value?.invoke()
                 }
             )
         }) { innerPadding ->
@@ -350,7 +367,30 @@ fun NapectApp(
                     val id = backStackEntry.arguments?.getLong("id") ?: 0L
                     val recipe by vm.getRecipeById(id).collectAsState(initial = null)
                     recipe?.let {
-                        RecipeDetailScreen(recipe = it, onClose = { navController.popBackStack() }, onToggleFavorite = { idArg, fav -> vm.toggleFavorite(idArg, fav) }, onEdit = { rid -> navController.navigate("recipe/$rid/edit") }, onDelete = { rid -> vm.deleteRecipe(rid) { navController.popBackStack() } })
+                        RecipeDetailScreen(
+                            recipe = it,
+                            onClose = { navController.popBackStack() },
+                            onToggleFavorite = { idArg, fav -> vm.toggleFavorite(idArg, fav) },
+                            onEdit = { rid -> navController.navigate("recipe/$rid/edit") },
+                            onDelete = { rid -> vm.deleteRecipe(rid) { navController.popBackStack() } },
+                            onMake = { rid -> navController.navigate("recipe/$rid/make") },
+                            onRegisterTopBarActions = { cb -> detailActionsState.value = cb }
+                        )
+                    }
+                }
+
+                // Make / cooking mode
+                navComposable("recipe/{id}/make",
+                    arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                    enterTransition = { slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
+                    exitTransition = { slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(300)) + fadeOut(tween(300)) },
+                    popEnterTransition = { slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(300)) + fadeIn(tween(300)) },
+                    popExitTransition = { slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) + fadeOut(tween(300)) }
+                ) { backStackEntry ->
+                    val id = backStackEntry.arguments?.getLong("id") ?: 0L
+                    val recipe by vm.getRecipeById(id).collectAsState(initial = null)
+                    recipe?.let {
+                        MakeScreen(recipe = it, onFinish = { navController.popBackStack() }, onSave = { r -> vm.updateRecipe(r) }, onToggleFavorite = { rid, fav -> vm.toggleFavorite(rid, fav) }, onDelete = { rid -> vm.deleteRecipe(rid) { navController.popBackStack() } })
                     }
                 }
             }
@@ -442,7 +482,8 @@ fun NapectApp(
                         checked = fabMenuExpanded,
                         onCheckedChange = { fabMenuExpanded = it },
                         modifier = Modifier.animateFloatingActionButton(
-                            visible = currentRoute != "add" && currentRoute?.endsWith("/edit") != true,
+                            // hide FAB on add, edit, make and any recipe detail/make/edit route to avoid overlap
+                            visible = currentRoute != "add" && currentRoute?.endsWith("/edit") != true && currentRoute?.endsWith("/make") != true && currentRoute?.startsWith("recipe/") != true,
                             alignment = Alignment.BottomEnd
                         ),
                     ) {
@@ -454,7 +495,8 @@ fun NapectApp(
                         Icon(
                             painter = rememberVectorPainter(imageVector),
                             contentDescription = if (fabMenuExpanded) "Zavřít nabídku" else "Přidat recept",
-                            modifier = Modifier.animateIcon({ checkedProgress })
+                            // Increase the main FAB icon size so it's more prominent
+                            modifier = Modifier.animateIcon({ checkedProgress }).size(32.dp)
                         )
                     }
                 },
