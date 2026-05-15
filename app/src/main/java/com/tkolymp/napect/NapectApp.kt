@@ -231,6 +231,7 @@ fun NapectApp(
         }) { innerPadding ->
             val items by vm.recipes.collectAsState()
             val searchResults by vm.searchResults.collectAsState()
+            val searchQuery by vm.searchQuery.collectAsState()
 
             // If the app was opened via share and importVm + initialSharedUrl are provided, navigate to the import screen
             LaunchedEffect(initialSharedUrl, initialSharedImageUri) {
@@ -256,7 +257,7 @@ fun NapectApp(
                     exitTransition = { fadeOut(tween(150)) }
                 ) {
                     val baseList = items
-                    val searchFiltered = if (vm.searchQuery.value.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
+                    val searchFiltered = if (searchQuery.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
                     // Apply tag filter if selectedTagId is set
                     val tagFiltered = selectedTagId?.let { tid -> searchFiltered.filter { r -> r.tags.any { t -> t.id == tid } } } ?: searchFiltered
                     Column(modifier = Modifier.fillMaxSize()) {
@@ -265,24 +266,28 @@ fun NapectApp(
                         if (!vmError.isNullOrBlank()) Text(text = "Error: $vmError", modifier = Modifier.padding(8.dp))
                         // Material3 SearchBar: follows the Material Search pattern with suggestions
                         val homeSearchActive = rememberSaveable { mutableStateOf(false) }
+                        var homeLocalQuery by remember { mutableStateOf(searchQuery) }
+                        LaunchedEffect(searchQuery) { if (searchQuery != homeLocalQuery) homeLocalQuery = searchQuery }
                         SearchBar(
-                            query = vm.searchQuery.value,
-                            onQueryChange = { vm.setSearchQuery(it) },
+                            query = homeLocalQuery,
+                            onQueryChange = { homeLocalQuery = it; vm.setSearchQuery(it) },
                             onSearch = { q -> vm.setSearchQuery(q); homeSearchActive.value = false },
                             active = homeSearchActive.value,
                             onActiveChange = { homeSearchActive.value = it },
                             placeholder = { Text("Hledat") },
                             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp),
                             trailingIcon = {
-                                if (vm.searchQuery.value.isNotBlank()) {
+                                if (searchQuery.isNotBlank()) {
                                     IconButton(onClick = { vm.setSearchQuery("") }) { Icon(Icons.Filled.Close, contentDescription = "Vyčistit") }
                                 }
                             }
                         ) {
                             // Show simple suggestions: when query is empty show recent (first few recipes),
                             // otherwise show search results. Clicking a suggestion sets it as the query.
-                            val suggestions = if (vm.searchQuery.value.isBlank()) baseList.take(6) else searchResults
+                            val suggestions = if (searchQuery.isBlank()) baseList.take(6) else searchResults
                             // Make suggestion box expand to fill available width
                             val suggestionModifier = Modifier.fillMaxWidth()
                             LazyColumn(modifier = Modifier.heightIn(max = 600.dp)) {
@@ -318,26 +323,30 @@ fun NapectApp(
                     exitTransition = { fadeOut(tween(150)) }
                 ) {
                     val baseList = items.filter { it.isFavorite }
-                    val searchFiltered = if (vm.searchQuery.value.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
+                    val searchFiltered = if (searchQuery.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
                     val tagFiltered = selectedTagId?.let { tid -> searchFiltered.filter { r -> r.tags.any { t -> t.id == tid } } } ?: searchFiltered
                     Column(modifier = Modifier.fillMaxSize()) {
                         val favSearchActive = rememberSaveable { mutableStateOf(false) }
+                        var favLocalQuery by remember { mutableStateOf(searchQuery) }
+                        LaunchedEffect(searchQuery) { if (searchQuery != favLocalQuery) favLocalQuery = searchQuery }
                         SearchBar(
-                            query = vm.searchQuery.value,
-                            onQueryChange = { vm.setSearchQuery(it) },
+                            query = favLocalQuery,
+                            onQueryChange = { favLocalQuery = it; vm.setSearchQuery(it) },
                             onSearch = { q -> vm.setSearchQuery(q); favSearchActive.value = false },
                             active = favSearchActive.value,
                             onActiveChange = { favSearchActive.value = it },
                             placeholder = { Text("Hledat") },
                             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp),
                             trailingIcon = {
-                                if (vm.searchQuery.value.isNotBlank()) {
+                                if (searchQuery.isNotBlank()) {
                                     IconButton(onClick = { vm.setSearchQuery("") }) { Icon(Icons.Filled.Close, contentDescription = "Vyčistit") }
                                 }
                             }
                         ) {
-                            val suggestions = if (vm.searchQuery.value.isBlank()) baseList.take(6) else searchResults
+                            val suggestions = if (searchQuery.isBlank()) baseList.take(6) else searchResults
                             val suggestionModifier = Modifier.fillMaxWidth()
                             LazyColumn(modifier = Modifier.heightIn(max = 600.dp)) {
                                 items(suggestions) { r ->

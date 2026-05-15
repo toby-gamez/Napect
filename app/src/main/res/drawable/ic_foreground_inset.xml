@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="12dp"
+    android:insetTop="12dp"
+    android:insetRight="12dp"
+    android:insetBottom="12dp">
+    <!-- Wrap the original mipmap foreground so we don't modify the image itself.
+         Insets shrink the drawable visually so it stays inside adaptive safe area. -->
+    <bitmap
+        android:src="@mipmap/ic_launcher_foreground"
+        android:gravity="center"
+        android:antialias="true" />
+</inset>
