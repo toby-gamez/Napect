@@ -95,6 +95,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.graphics.Color
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -142,6 +146,7 @@ fun NapectApp(
         fabMenuExpanded = false
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     AppNavBar(currentDestination = selectedDestination, onDestinationChange = { dest ->
         if (dest != selectedDestination) {
             selectedDestination = dest
@@ -196,48 +201,6 @@ fun NapectApp(
                     }
                 }
             )
-        }, floatingActionButton = {
-            FloatingActionButtonMenu(
-                expanded = fabMenuExpanded,
-                button = {
-                    ToggleFloatingActionButton(
-                        checked = fabMenuExpanded,
-                        onCheckedChange = { fabMenuExpanded = it },
-                        modifier = Modifier.animateFloatingActionButton(
-                            visible = currentRoute != "add" && currentRoute?.endsWith("/edit") != true,
-                            alignment = Alignment.BottomEnd
-                        ),
-                    ) {
-                        val imageVector by remember {
-                            derivedStateOf {
-                                if (checkedProgress > 0.5f) Icons.Filled.Close else Icons.Filled.Add
-                            }
-                        }
-                        Icon(
-                            painter = rememberVectorPainter(imageVector),
-                            contentDescription = if (fabMenuExpanded) "Zavřít nabídku" else "Přidat recept",
-                            modifier = Modifier.animateIcon({ checkedProgress })
-                        )
-                    }
-                },
-            ) {
-                FloatingActionButtonMenuItem(
-                    onClick = {
-                        fabMenuExpanded = false
-                        showUrlDialog = true
-                    },
-                    text = { Text("Zadat odkaz", style = MaterialTheme.typography.bodyLarge) },
-                    icon = { Icon(Icons.Filled.Link, contentDescription = null) },
-                )
-                FloatingActionButtonMenuItem(
-                    onClick = {
-                        fabMenuExpanded = false
-                        navController.navigate("add")
-                    },
-                    text = { Text("Napsat ručně", style = MaterialTheme.typography.bodyLarge) },
-                    icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                )
-            }
         }) { innerPadding ->
             val items by vm.recipes.collectAsState()
             val searchResults by vm.searchResults.collectAsState()
@@ -447,4 +410,72 @@ fun NapectApp(
             }
         }
     }
+
+        // Scrim overlay — covers the full screen (app bar + nav bar + content)
+        // when the FAB menu is open; uses surface colour so it adapts to light/dark
+        val scrimColor = MaterialTheme.colorScheme.surface
+        AnimatedVisibility(
+            visible = fabMenuExpanded,
+            enter = fadeIn(tween(300)),
+            exit = fadeOut(tween(300))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(scrimColor.copy(alpha = 0.7f))
+                    .clickable { fabMenuExpanded = false }
+            )
+        }
+
+        // FAB — rendered after the scrim so it always floats above it
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .padding(bottom = 80.dp + 16.dp, end = 16.dp),
+            contentAlignment = Alignment.BottomEnd
+        ) {
+            FloatingActionButtonMenu(
+                expanded = fabMenuExpanded,
+                button = {
+                    ToggleFloatingActionButton(
+                        checked = fabMenuExpanded,
+                        onCheckedChange = { fabMenuExpanded = it },
+                        modifier = Modifier.animateFloatingActionButton(
+                            visible = currentRoute != "add" && currentRoute?.endsWith("/edit") != true,
+                            alignment = Alignment.BottomEnd
+                        ),
+                    ) {
+                        val imageVector by remember {
+                            derivedStateOf {
+                                if (checkedProgress > 0.5f) Icons.Filled.Close else Icons.Filled.Add
+                            }
+                        }
+                        Icon(
+                            painter = rememberVectorPainter(imageVector),
+                            contentDescription = if (fabMenuExpanded) "Zavřít nabídku" else "Přidat recept",
+                            modifier = Modifier.animateIcon({ checkedProgress })
+                        )
+                    }
+                },
+            ) {
+                FloatingActionButtonMenuItem(
+                    onClick = {
+                        fabMenuExpanded = false
+                        showUrlDialog = true
+                    },
+                    text = { Text("Zadat odkaz", style = MaterialTheme.typography.bodyLarge) },
+                    icon = { Icon(Icons.Filled.Link, contentDescription = null) },
+                )
+                FloatingActionButtonMenuItem(
+                    onClick = {
+                        fabMenuExpanded = false
+                        navController.navigate("add")
+                    },
+                    text = { Text("Napsat ručně", style = MaterialTheme.typography.bodyLarge) },
+                    icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                )
+            }
+        }
+    } // end outer Box
 }
