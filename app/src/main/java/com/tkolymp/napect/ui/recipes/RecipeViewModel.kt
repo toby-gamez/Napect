@@ -16,9 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
 import com.tkolymp.napect.domain.model.Tag
 import com.tkolymp.napect.data.ai.AiClient
 import com.tkolymp.napect.domain.model.TagGroup
@@ -30,7 +28,6 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _searchQuery = MutableStateFlow("")
-    // debounced search results: empty query returns full list from repo
     val searchResults: StateFlow<List<Recipe>> = _searchQuery
         .debounce(300)
         .flatMapLatest { q -> if (q.isBlank()) repo.getAllRecipes() else repo.search(q) }
@@ -38,18 +35,19 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun setSearchQuery(q: String) { _searchQuery.value = q }
-    // expose search query as read-only flow for UI
     val searchQuery = _searchQuery.asStateFlow()
 
-    // expose an optional error message for UI reporting
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
     fun createRecipe(recipe: Recipe, onComplete: (Long) -> Unit = {}) {
         viewModelScope.launch {
             try {
-                val category = if (recipe.category == Category.UNKNOWN) RecipeClassifier.classify(recipe.title, recipe.ingredients.map { it.name }, recipe.steps.map { it.instruction }) else recipe.category
-                val summary = recipe.summary ?: ai?.generateSummary(recipe.title, recipe.ingredients, recipe.steps)
+                val allIng = recipe.allIngredients
+                val category = if (recipe.category == Category.UNKNOWN)
+                    RecipeClassifier.classify(recipe.title, allIng.map { it.name }, recipe.steps.map { it.instruction })
+                else recipe.category
+                val summary = recipe.summary ?: ai.generateSummary(recipe.title, allIng, recipe.steps)
                 val id = repo.createRecipe(recipe.copy(category = category, summary = summary))
                 _error.value = null
                 onComplete(id)
@@ -86,9 +84,11 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
     fun createRecipeWithTags(recipe: Recipe, tagIds: List<Long>, onComplete: (Long) -> Unit = {}) {
         viewModelScope.launch {
             try {
-                val category = if (recipe.category == Category.UNKNOWN) RecipeClassifier.classify(recipe.title, recipe.ingredients.map { it.name }, recipe.steps.map { it.instruction }) else recipe.category
-                val summary = recipe.summary ?: ai?.generateSummary(recipe.title, recipe.ingredients, recipe.steps)
-                // If no tag ids provided, attempt to auto-suggest tags using the repository AI suggester.
+                val allIng = recipe.allIngredients
+                val category = if (recipe.category == Category.UNKNOWN)
+                    RecipeClassifier.classify(recipe.title, allIng.map { it.name }, recipe.steps.map { it.instruction })
+                else recipe.category
+                val summary = recipe.summary ?: ai.generateSummary(recipe.title, allIng, recipe.steps)
                 val finalTagIds = if (tagIds.isNotEmpty()) {
                     tagIds
                 } else {
@@ -99,7 +99,6 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
                         emptyList()
                     }
                 }
-
                 val id = repo.saveRecipeWithTags(recipe.copy(category = category, summary = summary), finalTagIds)
                 _error.value = null
                 onComplete(id)
@@ -112,11 +111,11 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
     fun updateRecipeWithTags(recipe: Recipe, tagIds: List<Long>, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             try {
-                val category = if (recipe.category == Category.UNKNOWN) RecipeClassifier.classify(recipe.title, recipe.ingredients.map { it.name }, recipe.steps.map { it.instruction }) else recipe.category
-                val summary = recipe.summary ?: ai?.generateSummary(recipe.title, recipe.ingredients, recipe.steps)
-                // update recipe core
-                repo.updateRecipe(recipe.copy(category = category, summary = summary))
-                // If no tag ids provided, attempt to auto-suggest tags and apply them
+                val allIng = recipe.allIngredients
+                val category = if (recipe.category == Category.UNKNOWN)
+                    RecipeClassifier.classify(recipe.title, allIng.map { it.name }, recipe.steps.map { it.instruction })
+                else recipe.category
+                val summary = recipe.summary ?: ai.generateSummary(recipe.title, allIng, recipe.steps)
                 val finalTagIds = if (tagIds.isNotEmpty()) {
                     tagIds
                 } else {
@@ -127,7 +126,7 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
                         emptyList()
                     }
                 }
-                repo.saveRecipeWithTags(recipe, finalTagIds)
+                repo.saveRecipeWithTags(recipe.copy(category = category, summary = summary), finalTagIds)
                 _error.value = null
                 onComplete()
             } catch (e: Exception) {
@@ -154,8 +153,11 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
     fun updateRecipe(recipe: Recipe, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             try {
-                val category = if (recipe.category == Category.UNKNOWN) RecipeClassifier.classify(recipe.title, recipe.ingredients.map { it.name }, recipe.steps.map { it.instruction }) else recipe.category
-                val summary = recipe.summary ?: ai?.generateSummary(recipe.title, recipe.ingredients, recipe.steps)
+                val allIng = recipe.allIngredients
+                val category = if (recipe.category == Category.UNKNOWN)
+                    RecipeClassifier.classify(recipe.title, allIng.map { it.name }, recipe.steps.map { it.instruction })
+                else recipe.category
+                val summary = recipe.summary ?: ai.generateSummary(recipe.title, allIng, recipe.steps)
                 repo.updateRecipe(recipe.copy(category = category, summary = summary))
                 _error.value = null
                 onComplete()
@@ -193,7 +195,6 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
             try {
                 val inserted = repo.ensureDefaultTags()
                 _error.value = if (inserted > 0) "Restored $inserted default tags" else "Default tags already present"
-                // optional: could expose a success state if needed
             } catch (e: Exception) {
                 _error.value = e.message ?: "Failed to restore default tags"
             }

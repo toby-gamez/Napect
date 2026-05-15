@@ -2,10 +2,17 @@ package com.tkolymp.napect.data.local.dao
 
 import androidx.room.*
 import com.tkolymp.napect.data.local.entity.IngredientEntity
+import com.tkolymp.napect.data.local.entity.IngredientGroupEntity
 import com.tkolymp.napect.data.local.entity.RecipeEntity
 import com.tkolymp.napect.data.local.entity.RecipeWithDetails
 import com.tkolymp.napect.data.local.entity.StepEntity
 import kotlinx.coroutines.flow.Flow
+
+/** Lightweight container used when inserting a group together with its ingredients. */
+data class IngredientGroupInsert(
+    val group: IngredientGroupEntity,
+    val ingredients: List<IngredientEntity>,
+)
 
 @Dao
 interface RecipeDao {
@@ -21,6 +28,9 @@ interface RecipeDao {
     suspend fun insertRecipe(recipe: RecipeEntity): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertIngredientGroup(group: IngredientGroupEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertIngredients(ingredients: List<IngredientEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -32,23 +42,60 @@ interface RecipeDao {
     @Query("DELETE FROM recipes WHERE id = :id")
     suspend fun deleteRecipeById(id: Long)
 
+    @Query("DELETE FROM ingredient_groups WHERE recipe_id = :recipeId")
+    suspend fun deleteIngredientGroupsByRecipeId(recipeId: Long)
+
+    @Query("DELETE FROM steps WHERE recipe_id = :recipeId")
+    suspend fun deleteStepsByRecipeId(recipeId: Long)
+
     @Query("UPDATE recipes SET is_favorite = :fav WHERE id = :id")
     suspend fun updateFavorite(id: Long, fav: Boolean)
 
+    /**
+     * Insert a complete recipe (entity + ingredient groups + steps) in a single transaction.
+     * The recipeId and groupId fields in the supplied entities are ignored — correct IDs are
+     * assigned after each insert returns its generated key.
+     */
     @Transaction
     suspend fun insertRecipeWithDetails(
         recipe: RecipeEntity,
-        ingredients: List<IngredientEntity>,
-        steps: List<StepEntity>
+        ingredientGroups: List<IngredientGroupInsert>,
+        steps: List<StepEntity>,
     ): Long {
-        val id = insertRecipe(recipe)
-        if (ingredients.isNotEmpty()) {
-            insertIngredients(ingredients.map { it.copy(recipeId = id) })
+        val recipeId = insertRecipe(recipe)
+        for (groupInsert in ingredientGroups) {
+            val groupId = insertIngredientGroup(groupInsert.group.copy(recipeId = recipeId))
+            if (groupInsert.ingredients.isNotEmpty()) {
+                insertIngredients(groupInsert.ingredients.map { it.copy(groupId = groupId) })
+            }
         }
         if (steps.isNotEmpty()) {
-            insertSteps(steps.map { it.copy(recipeId = id) })
+            insertSteps(steps.map { it.copy(recipeId = recipeId) })
         }
-        return id
+        return recipeId
+    }
+
+    /**
+     * Replace ingredient groups, ingredients, and steps for an existing recipe in a single
+     * transaction. The recipe row itself is updated separately via [updateRecipe].
+     */
+    @Transaction
+    suspend fun replaceRecipeDetails(
+        recipeId: Long,
+        ingredientGroups: List<IngredientGroupInsert>,
+        steps: List<StepEntity>,
+    ) {
+        deleteIngredientGroupsByRecipeId(recipeId)
+        deleteStepsByRecipeId(recipeId)
+        for (groupInsert in ingredientGroups) {
+            val groupId = insertIngredientGroup(groupInsert.group.copy(recipeId = recipeId))
+            if (groupInsert.ingredients.isNotEmpty()) {
+                insertIngredients(groupInsert.ingredients.map { it.copy(groupId = groupId) })
+            }
+        }
+        if (steps.isNotEmpty()) {
+            insertSteps(steps.map { it.copy(recipeId = recipeId) })
+        }
     }
 
     @Transaction

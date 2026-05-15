@@ -1,11 +1,14 @@
 package com.tkolymp.napect.data.mapper
 
 import com.tkolymp.napect.data.local.entity.IngredientEntity
+import com.tkolymp.napect.data.local.entity.IngredientGroupEntity
+import com.tkolymp.napect.data.local.entity.IngredientGroupWithIngredients
 import com.tkolymp.napect.data.local.entity.RecipeEntity
 import com.tkolymp.napect.data.local.entity.RecipeWithDetails
 import com.tkolymp.napect.data.local.entity.StepEntity
 import com.tkolymp.napect.domain.model.Category
 import com.tkolymp.napect.domain.model.Ingredient
+import com.tkolymp.napect.domain.model.IngredientGroup
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.model.Step
 import com.tkolymp.napect.data.local.entity.TagEntity
@@ -23,8 +26,10 @@ fun RecipeWithDetails.toDomain(): Recipe = Recipe(
     category = recipe.category?.let { try { Category.valueOf(it) } catch (e: Exception) { Category.UNKNOWN } } ?: Category.UNKNOWN,
     photo = recipe.photo,
     servingsBase = recipe.servingsBase,
-    ingredients = ingredients.map { it.toDomain() },
-    steps = steps.map { it.toDomain() },
+    ingredientGroups = ingredientGroups
+        .sortedBy { it.group.sortOrder }
+        .map { it.toDomain() },
+    steps = steps.sortedBy { it.stepNumber }.map { it.toDomain() },
     tags = tags.map { it.toDomain() },
     createdAt = Date(recipe.createdAt),
     updatedAt = Date(recipe.updatedAt)
@@ -44,14 +49,44 @@ fun Recipe.toEntity(): RecipeEntity = RecipeEntity(
     updatedAt = updatedAt.time,
 )
 
-fun Ingredient.toEntity(): IngredientEntity = IngredientEntity(
+// ─── Ingredient group ────────────────────────────────────────────────────────
+
+fun IngredientGroupWithIngredients.toDomain(): IngredientGroup = IngredientGroup(
+    id = group.id,
+    recipeId = group.recipeId,
+    name = group.name,
+    sortOrder = group.sortOrder,
+    ingredients = ingredients.sortedBy { it.sortOrder }.map { it.toDomain() },
+)
+
+fun IngredientGroup.toEntity(): IngredientGroupEntity = IngredientGroupEntity(
     id = id,
     recipeId = recipeId,
+    name = name,
+    sortOrder = sortOrder,
+)
+
+// ─── Ingredient ───────────────────────────────────────────────────────────────
+
+fun Ingredient.toEntity(): IngredientEntity = IngredientEntity(
+    id = id,
+    groupId = groupId,
     amount = amount,
     unit = unit,
     name = name,
     sortOrder = sortOrder,
 )
+
+fun IngredientEntity.toDomain(): Ingredient = Ingredient(
+    id = id,
+    groupId = groupId,
+    amount = amount,
+    unit = unit,
+    name = name,
+    sortOrder = sortOrder,
+)
+
+// ─── Step ─────────────────────────────────────────────────────────────────────
 
 fun Step.toEntity(): StepEntity = StepEntity(
     id = id,
@@ -60,21 +95,14 @@ fun Step.toEntity(): StepEntity = StepEntity(
     instruction = instruction,
 )
 
-fun IngredientEntity.toDomain(): Ingredient = Ingredient(
-    id = id,
-    recipeId = recipeId,
-    amount = amount,
-    unit = unit,
-    name = name,
-    sortOrder = sortOrder,
-)
-
 fun StepEntity.toDomain(): Step = Step(
     id = id,
     recipeId = recipeId,
     stepNumber = stepNumber,
     instruction = instruction,
 )
+
+// ─── Tag ──────────────────────────────────────────────────────────────────────
 
 fun TagEntity.toDomain(): Tag = Tag(
     id = id,

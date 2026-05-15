@@ -6,10 +6,12 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import com.tkolymp.napect.data.ai.RecipeClassifier
 import com.tkolymp.napect.data.network.ImportedRecipeData
+import com.tkolymp.napect.data.network.groupIngredients
 import com.tkolymp.napect.data.network.UrlImportService
 import com.tkolymp.napect.data.ai.GeminiNanoService
 import com.tkolymp.napect.data.ai.AiClient
 import com.tkolymp.napect.domain.model.Ingredient
+import com.tkolymp.napect.domain.model.IngredientGroup
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.model.Step
 import com.tkolymp.napect.domain.repository.RecipeRepository
@@ -94,7 +96,7 @@ class UrlImportViewModel @Inject constructor(
                 }
 
                 val title = lines.firstOrNull() ?: "Scanned Recipe"
-                val data = ImportedRecipeData(title = title, description = null, ingredients = ingredients, steps = steps, sourceUrl = null)
+                val data = ImportedRecipeData(title = title, description = null, ingredientGroups = groupIngredients(ingredients), steps = steps, sourceUrl = null)
                 _state.value = UrlImportState.Success(data)
             } catch (e: Exception) {
                 _state.value = UrlImportState.Error(e.message ?: "OCR import failed")
@@ -138,29 +140,31 @@ class UrlImportViewModel @Inject constructor(
 
     fun saveImported(data: ImportedRecipeData, onComplete: (Long) -> Unit = {}) {
         viewModelScope.launch {
-            // parse ingredient strings into structured ingredients when possible
-            val ing = data.ingredients.mapIndexed { idx, s ->
-                try {
-                    val parsed = com.tkolymp.napect.data.parse.IngredientParser.parse(s)
-                    val amt = parsed.amount ?: 0.0
-                    val unit = parsed.unit
-                    val name = if (parsed.name.isBlank()) s else parsed.name
-                    Ingredient(amount = amt, unit = unit, name = name, sortOrder = idx)
-                } catch (e: Exception) {
-                    Ingredient(amount = 0.0, unit = null, name = s, sortOrder = idx)
+            // Convert each imported ingredient group into a domain IngredientGroup
+            val domainGroups = data.ingredientGroups.mapIndexed { gIdx, importedGroup ->
+                val ings = importedGroup.ingredients.mapIndexed { idx, s ->
+                    try {
+                        val parsed = com.tkolymp.napect.data.parse.IngredientParser.parse(s)
+                        val amt = parsed.amount ?: 0.0
+                        Ingredient(amount = amt, unit = parsed.unit, name = if (parsed.name.isBlank()) s else parsed.name, sortOrder = idx)
+                    } catch (e: Exception) {
+                        Ingredient(amount = 0.0, unit = null, name = s, sortOrder = idx)
+                    }
                 }
-            }
+                IngredientGroup(name = importedGroup.name, sortOrder = gIdx, ingredients = ings)
+            }.ifEmpty { listOf(IngredientGroup(name = "", ingredients = emptyList())) }
+
+            val allIngredients = domainGroups.flatMap { it.ingredients }
             val steps = data.steps.mapIndexed { idx, s -> Step(stepNumber = idx + 1, instruction = s) }
             val category = RecipeClassifier.classify(data.title, data.ingredients, data.steps)
             val recipe = Recipe(
                 title = data.title,
-                summary = data.description ?: ai?.generateSummary(data.title, ing, steps, data),
-                ingredients = ing,
+                summary = data.description ?: ai?.generateSummary(data.title, allIngredients, steps, data),
+                ingredientGroups = domainGroups,
                 steps = steps,
                 category = category,
                 sourceUrl = data.sourceUrl
             )
-            // Suggest tags (keyword-only suggester) and create any missing tags; then save recipe with tag ids
             val suggestion = try { repo.suggestTagsForRecipe(recipe) } catch (e: Exception) { null }
             val tagIds = suggestion?.let { (it.confirmed + it.newlyCreated).map { t -> t.id } } ?: emptyList()
             val id = repo.saveRecipeWithTags(recipe, tagIds)

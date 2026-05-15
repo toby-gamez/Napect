@@ -65,8 +65,38 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.remember
 // URL import screen removed: import handled inline in AddRecipeScreen
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FloatingActionButtonMenu
+import androidx.compose.material3.FloatingActionButtonMenuItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleFloatingActionButton
+import androidx.compose.material3.ToggleFloatingActionButtonDefaults
+import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
+import androidx.compose.material3.animateFloatingActionButton
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.material.icons.filled.ContentPaste
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun NapectApp(
     vm: RecipeViewModel,
@@ -79,10 +109,17 @@ fun NapectApp(
     var showAdd by rememberSaveable { mutableStateOf(false) }
     // tag selection (replaces the previous Category chips). Kept in-memory only.
     var selectedTagId by remember { mutableStateOf<Long?>(null) }
+    // FAB menu state
+    var fabMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    var showUrlDialog by remember { mutableStateOf(false) }
+    var fabUrlText by remember { mutableStateOf("") }
 
     // BackHandler integrates with the native OnBackPressedDispatcher so the system back
     // gesture (edge-swipe) and hardware back button are handled here.
     val navController = rememberNavController()
+
+    // Close FAB menu on system back when it is open
+    BackHandler(enabled = fabMenuExpanded) { fabMenuExpanded = false }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     // Holders for actions that child screens can register so the top app bar can
@@ -101,6 +138,8 @@ fun NapectApp(
         currentRoute?.let { r ->
             AppDestinations.values().find { it.name == r }?.let { selectedDestination = it }
         }
+        // collapse the FAB speed-dial on any navigation
+        fabMenuExpanded = false
     }
 
     AppNavBar(currentDestination = selectedDestination, onDestinationChange = { dest ->
@@ -158,11 +197,46 @@ fun NapectApp(
                 }
             )
         }, floatingActionButton = {
-            // navigate to add screen
-            AnimatedVisibility(visible = currentRoute != "add", enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
-                FloatingActionButton(onClick = { navController.navigate("add") }) {
-                    Icon(imageVector = Icons.Filled.Add, contentDescription = "Add")
-                }
+            FloatingActionButtonMenu(
+                expanded = fabMenuExpanded,
+                button = {
+                    ToggleFloatingActionButton(
+                        checked = fabMenuExpanded,
+                        onCheckedChange = { fabMenuExpanded = it },
+                        modifier = Modifier.animateFloatingActionButton(
+                            visible = currentRoute != "add" && currentRoute?.endsWith("/edit") != true,
+                            alignment = Alignment.BottomEnd
+                        ),
+                    ) {
+                        val imageVector by remember {
+                            derivedStateOf {
+                                if (checkedProgress > 0.5f) Icons.Filled.Close else Icons.Filled.Add
+                            }
+                        }
+                        Icon(
+                            painter = rememberVectorPainter(imageVector),
+                            contentDescription = if (fabMenuExpanded) "Close menu" else "Add recipe",
+                            modifier = Modifier.animateIcon({ checkedProgress })
+                        )
+                    }
+                },
+            ) {
+                FloatingActionButtonMenuItem(
+                    onClick = {
+                        fabMenuExpanded = false
+                        showUrlDialog = true
+                    },
+                    text = { Text("Enter URL", style = MaterialTheme.typography.bodyLarge) },
+                    icon = { Icon(Icons.Filled.Link, contentDescription = null) },
+                )
+                FloatingActionButtonMenuItem(
+                    onClick = {
+                        fabMenuExpanded = false
+                        navController.navigate("add")
+                    },
+                    text = { Text("Write by hand", style = MaterialTheme.typography.bodyLarge) },
+                    icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                )
             }
         }) { innerPadding ->
             val items by vm.recipes.collectAsState()
@@ -229,11 +303,13 @@ fun NapectApp(
                     exitTransition = { fadeOut(tween(150)) }
                 ) {
                     val allTags by vm.allTags.collectAsState()
+                    val error by vm.error.collectAsState()
                     SettingsScreen(
                         allTags = allTags,
                         onCreateTag = { name, group -> vm.createUserTag(name, group) },
                         onDeleteTag = { id -> vm.deleteTag(id) },
-                        onRestoreDefaults = { vm.restoreDefaultTags() }
+                        onRestoreDefaults = { vm.restoreDefaultTags() },
+                        error = error
                     )
                 }
 
@@ -314,6 +390,60 @@ fun NapectApp(
                         RecipeDetailScreen(recipe = it, onClose = { navController.popBackStack() }, onToggleFavorite = { idArg, fav -> vm.toggleFavorite(idArg, fav) }, onEdit = { rid -> navController.navigate("recipe/$rid/edit") }, onDelete = { rid -> vm.deleteRecipe(rid) { navController.popBackStack() } })
                     }
                 }
+            }
+
+            // URL import dialog — opened from the FAB "Enter URL" option
+            if (showUrlDialog) {
+                AlertDialog(
+                    onDismissRequest = {
+                        showUrlDialog = false
+                        fabUrlText = ""
+                    },
+                    title = { Text("Import from URL") },
+                    text = {
+                        val clipboardManager = LocalClipboardManager.current
+                        OutlinedTextField(
+                            value = fabUrlText,
+                            onValueChange = { fabUrlText = it },
+                            label = { Text("Recipe URL") },
+                            placeholder = { Text("https://...") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Uri,
+                                imeAction = ImeAction.Done
+                            ),
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    val clip = clipboardManager.getText()?.text
+                                    if (!clip.isNullOrBlank()) fabUrlText = clip
+                                }) {
+                                    Icon(Icons.Filled.ContentPaste, contentDescription = "Paste")
+                                }
+                            }
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val url = fabUrlText.trim()
+                                if (url.isNotBlank() && importVm != null) {
+                                    try { importVm.fetchUrl(url) } catch (_: Exception) { }
+                                }
+                                showUrlDialog = false
+                                fabUrlText = ""
+                                navController.navigate("add")
+                            },
+                            enabled = fabUrlText.isNotBlank()
+                        ) { Text("Import") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            showUrlDialog = false
+                            fabUrlText = ""
+                        }) { Text("Cancel") }
+                    }
+                )
             }
         }
     }

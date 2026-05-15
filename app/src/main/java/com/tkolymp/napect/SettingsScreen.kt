@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.tkolymp.napect.data.local.SettingsRepository
 import com.tkolymp.napect.data.local.ThemeMode
 import com.tkolymp.napect.domain.model.TagGroup
+import androidx.compose.material3.MaterialTheme
 
 @Composable
 fun SettingsScreen(
@@ -43,6 +44,7 @@ fun SettingsScreen(
     onCreateTag: (String, com.tkolymp.napect.domain.model.TagGroup) -> Unit = { _, _ -> },
     onDeleteTag: (Long) -> Unit = {},
     onRestoreDefaults: () -> Unit = {},
+    error: String? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -51,6 +53,14 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+        if (error != null) {
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
         Text("Theme")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             ThemeMode.values().forEach { mode ->

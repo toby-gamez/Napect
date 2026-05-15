@@ -9,9 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
@@ -45,7 +42,7 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AssistChip
-// single dp import above
+
 @Composable
 fun RecipeDetailScreen(
     recipe: Recipe,
@@ -55,14 +52,11 @@ fun RecipeDetailScreen(
     onDelete: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    // Use the user's default servings preference (from Settings) as the initial value
-    // so the app default is respected when opening a recipe detail.
     val context = LocalContext.current
     val repo = SettingsRepository(context)
     val prefs by repo.prefsFlow.collectAsState(initial = com.tkolymp.napect.data.local.UserPreferences())
 
     var servings by remember(recipe, prefs) { mutableStateOf(prefs.defaultServings.coerceAtLeast(1)) }
-
     var showConfirmDelete by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
@@ -70,6 +64,8 @@ fun RecipeDetailScreen(
             val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             Image(bitmap = bmp.asImageBitmap(), contentDescription = "Recipe photo", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
         }
+
+        // Title row
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text(recipe.title, style = MaterialTheme.typography.headlineSmall)
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -78,19 +74,14 @@ fun RecipeDetailScreen(
                         Icon(imageVector = if (recipe.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = "Favorite")
                     }
                 } else {
-                    // show icon without click when callback not provided
                     Icon(imageVector = if (recipe.isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = "Favorite")
                 }
-
                 if (onEdit != null) {
-                    IconButton(onClick = { onEdit(recipe.id) }) { Icon(imageVector = androidx.compose.material.icons.Icons.Filled.Edit, contentDescription = "Edit recipe") }
+                    IconButton(onClick = { onEdit(recipe.id) }) { Icon(imageVector = Icons.Filled.Edit, contentDescription = "Edit recipe") }
                 }
-
                 if (onDelete != null) {
-                    IconButton(onClick = { showConfirmDelete = true }) { Icon(imageVector = androidx.compose.material.icons.Icons.Filled.Delete, contentDescription = "Delete recipe") }
+                    IconButton(onClick = { showConfirmDelete = true }) { Icon(imageVector = Icons.Filled.Delete, contentDescription = "Delete recipe") }
                 }
-
-                // show close only when the caller provided an onClose handler
                 if (onClose != null) {
                     IconButton(onClick = onClose) { Text("Close") }
                 }
@@ -105,7 +96,7 @@ fun RecipeDetailScreen(
             FlowRow(modifier = Modifier.fillMaxWidth()) {
                 recipe.tags.forEach { t ->
                     if (t.isAiGenerated) {
-                        AssistChip(onClick = {}, label = { Text(t.name) }, leadingIcon = { Icon(androidx.compose.material.icons.Icons.Filled.AutoAwesome, contentDescription = "AI") }, modifier = Modifier.padding(end = 8.dp))
+                        AssistChip(onClick = {}, label = { Text(t.name) }, leadingIcon = { Icon(Icons.Filled.AutoAwesome, contentDescription = "AI") }, modifier = Modifier.padding(end = 8.dp))
                     } else {
                         AssistChip(onClick = {}, label = { Text(t.name) }, modifier = Modifier.padding(end = 8.dp))
                     }
@@ -113,23 +104,47 @@ fun RecipeDetailScreen(
             }
         }
 
+        // Servings scaler
         Spacer(modifier = Modifier.size(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { if (servings > 1) servings-- }, modifier = Modifier.size(40.dp)) { Icon(imageVector = androidx.compose.material.icons.Icons.Filled.Remove, contentDescription = "Decrease servings") }
+            IconButton(onClick = { if (servings > 1) servings-- }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Remove, contentDescription = "Decrease servings") }
             Text("  Servings: $servings  ", modifier = Modifier.padding(horizontal = 8.dp))
-            IconButton(onClick = { servings++ }, modifier = Modifier.size(40.dp)) { Icon(imageVector = androidx.compose.material.icons.Icons.Filled.Add, contentDescription = "Increase servings") }
+            IconButton(onClick = { servings++ }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Add, contentDescription = "Increase servings") }
         }
 
+        // ── Ingredients ──────────────────────────────────────────────────────────
         Spacer(modifier = Modifier.size(12.dp))
         Text("Ingredients", style = MaterialTheme.typography.titleMedium)
-        Column {
-            recipe.ingredients.forEach { ing ->
-                val scaled = if (recipe.servingsBase > 0) ing.amount * servings.toDouble() / recipe.servingsBase.toDouble() else ing.amount
-                Text("${scaled.takeIf { !it.isNaN() } ?: ing.amount} ${ing.unit.orEmpty()} ${ing.name}")
+
+        recipe.ingredientGroups.forEach { group ->
+            // Only show a sub-heading when the group has a custom name (e.g. "Dough", "Topping")
+            if (group.name.isNotBlank()) {
+                Text(group.name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+            }
+            Column(modifier = Modifier.padding(bottom = 4.dp)) {
+                group.ingredients.forEach { ing ->
+                    val scaled = if (recipe.servingsBase > 0)
+                        ing.amount * servings.toDouble() / recipe.servingsBase.toDouble()
+                    else ing.amount
+                    val amountStr = scaled.takeIf { !it.isNaN() } ?: ing.amount
+                    Text(
+                        buildString {
+                            val amtDouble = amountStr as Double
+                            if (amtDouble != 0.0) {
+                                append(if (amtDouble == kotlin.math.floor(amtDouble)) amtDouble.toInt().toString() else "%.2f".format(amtDouble).trimEnd('0').trimEnd('.'))
+                                append(" ")
+                            }
+                            if (!ing.unit.isNullOrBlank()) { append(ing.unit); append(" ") }
+                            append(ing.name)
+                        },
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.size(12.dp))
+        // ── Steps ────────────────────────────────────────────────────────────
+        Spacer(modifier = Modifier.size(4.dp))
         Text("Steps", style = MaterialTheme.typography.titleMedium)
         Column {
             recipe.steps.forEach { step ->
@@ -139,13 +154,16 @@ fun RecipeDetailScreen(
     }
 
     if (showConfirmDelete) {
-        AlertDialog(onDismissRequest = { showConfirmDelete = false }, confirmButton = {
-            TextButton(onClick = {
-                showConfirmDelete = false
-                onDelete?.invoke(recipe.id)
-            }) { Text("Delete") }
-        }, dismissButton = {
-            TextButton(onClick = { showConfirmDelete = false }) { Text("Cancel") }
-        }, title = { Text("Delete recipe?") }, text = { Text("This will permanently delete the recipe.") })
+        AlertDialog(
+            onDismissRequest = { showConfirmDelete = false },
+            confirmButton = {
+                TextButton(onClick = { showConfirmDelete = false; onDelete?.invoke(recipe.id) }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmDelete = false }) { Text("Cancel") }
+            },
+            title = { Text("Delete recipe?") },
+            text = { Text("This will permanently delete the recipe.") }
+        )
     }
 }

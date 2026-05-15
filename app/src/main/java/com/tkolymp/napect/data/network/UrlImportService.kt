@@ -88,7 +88,7 @@ class UrlImportService(private val client: OkHttpClient = OkHttpClient()) {
                             else -> steps.add(instr.toString())
                         }
                     }
-                    return ImportedRecipeData(title = title, description = description, ingredients = ingredients, steps = steps)
+                    return ImportedRecipeData(title = title, description = description, ingredientGroups = groupIngredients(ingredients), steps = steps)
                 }
 
                 // try nested properties

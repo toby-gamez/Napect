@@ -12,9 +12,13 @@ data class Recipe(
     val category: Category = Category.UNKNOWN,
     val photo: ByteArray? = null,
     val servingsBase: Int = 1,
-    val ingredients: List<Ingredient> = emptyList(),
+    val ingredientGroups: List<IngredientGroup> = emptyList(),
     val steps: List<Step> = emptyList(),
     val tags: List<Tag> = emptyList(),
     val createdAt: Date = Date(),
     val updatedAt: Date = Date(),
-)
+) {
+    /** Flat list of all ingredients across all groups, preserving group order. */
+    val allIngredients: List<Ingredient> get() = ingredientGroups.flatMap { it.ingredients }
+}
+
