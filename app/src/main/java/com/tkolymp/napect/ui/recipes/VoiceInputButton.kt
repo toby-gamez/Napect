@@ -9,9 +9,10 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -40,6 +41,6 @@ fun VoiceInputButton(onResult: (String) -> Unit) {
         }
         launcher.launch(intent)
     }) {
-        Text("🎤")
+        Icon(Icons.Filled.Mic, contentDescription = "Hlasový vstup")
     }
 }

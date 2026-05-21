@@ -79,7 +79,7 @@ fun MakeScreen(
     var servings by remember(recipe, prefs) { mutableStateOf(prefs.defaultServings.coerceAtLeast(1)) }
 
     // Keep screen on while this composable is present
-    DisposableEffect(Unit) {
+    DisposableEffect(activity) {
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -186,7 +186,7 @@ fun MakeScreen(
                                 else ing.amount
                                 val amountStr = scaled.takeIf { !it.isNaN() } ?: ing.amount
                                 Text(text = buildString {
-                                    val amtDouble = amountStr as Double
+                                    val amtDouble = (amountStr as? Double) ?: ing.amount
                                     if (amtDouble != 0.0) {
                                         append(if (amtDouble == kotlin.math.floor(amtDouble)) amtDouble.toInt().toString() else "%.2f".format(amtDouble).trimEnd('0').trimEnd('.'))
                                         append(" ")

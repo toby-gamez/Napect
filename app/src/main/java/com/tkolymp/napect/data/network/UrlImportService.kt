@@ -15,7 +15,9 @@ import java.util.regex.Pattern
 class UrlImportService(private val client: OkHttpClient = OkHttpClient()) {
     suspend fun importFromUrl(url: String): Result<ImportedRecipeData> = withContext(Dispatchers.IO) {
         try {
-            val req = Request.Builder().url(url).get().build()
+            val req = Request.Builder().url(url).get()
+                .header("User-Agent", "Napect/1.0 (Android; Recipe Manager)")
+                .build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@withContext Result.failure(Exception("HTTP ${resp.code}"))
                 val body = resp.body?.string().orEmpty()

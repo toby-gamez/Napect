@@ -27,7 +27,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -58,8 +58,6 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.foundation.layout)
-    // Override BOM's 1.4.0 to get M3 Expressive APIs (FloatingActionButtonMenu, ToggleFloatingActionButton, etc.)
-    implementation("androidx.compose.material3:material3:1.5.0-alpha10")
     implementation(libs.androidx.compose.material3.adaptive.navigation.suite)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
@@ -87,9 +85,6 @@ dependencies {
     // Image decoding (for reading picked images) - removed unused Glide dependency
     // DataStore Preferences for app settings via version catalog
     implementation(libs.androidx.datastore.preferences)
-    // Firebase BOM and AI SDK (via version catalog)
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.ai)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

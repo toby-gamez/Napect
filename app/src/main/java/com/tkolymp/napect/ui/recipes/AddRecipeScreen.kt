@@ -181,7 +181,8 @@ fun AddRecipeScreen(
 
     val launchCameraInternal: () -> Unit = {
         try {
-            val tmpFile = java.io.File.createTempFile("camera_capture_${System.currentTimeMillis()}", ".jpg", context.cacheDir)
+            val cameraDir = java.io.File(context.cacheDir, "camera_captures").also { it.mkdirs() }
+            val tmpFile = java.io.File.createTempFile("camera_capture_${System.currentTimeMillis()}", ".jpg", cameraDir)
             tmpFile.deleteOnExit()
             val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tmpFile)
             currentCameraUri = uri

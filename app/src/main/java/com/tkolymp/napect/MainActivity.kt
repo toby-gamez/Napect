@@ -6,7 +6,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.activity.viewModels
 import com.tkolymp.napect.data.local.DatabaseProvider
 import com.tkolymp.napect.data.network.UrlImportService
 import com.tkolymp.napect.data.ai.GeminiNanoService
@@ -69,8 +68,6 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            // set the app context for ViewModels that need to access resources like content resolver
-            AppContextHolder.context = applicationContext
             val settingsRepo = SettingsRepository(applicationContext)
             val prefs by settingsRepo.prefsFlow.collectAsState(initial = UserPreferences())
             val dark = when (prefs.themeMode) {

@@ -6,7 +6,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.repository.RecipeRepository
-import com.tkolymp.napect.data.ai.RecipeClassifier
 import com.tkolymp.napect.domain.model.Category
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +14,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.asStateFlow
 import com.tkolymp.napect.domain.model.Tag
@@ -29,6 +29,7 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
 
     private val _searchQuery = MutableStateFlow("")
     val searchResults: StateFlow<List<Recipe>> = _searchQuery
+        .filter { it.length >= 2 || it.isBlank() }
         .debounce(300)
         .flatMapLatest { q -> if (q.isBlank()) repo.getAllRecipes() else repo.search(q) }
         .catch { emit(emptyList()) }
@@ -36,6 +37,22 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
 
     fun setSearchQuery(q: String) { _searchQuery.value = q }
     val searchQuery = _searchQuery.asStateFlow()
+
+    private fun classifyRecipe(title: String?, ingredients: List<String>, steps: List<String>): Category {
+        val text = (listOfNotNull(title) + ingredients + steps).joinToString(" ").lowercase()
+        val map = mapOf(
+            Category.SOUP to listOf("soup", "broth", "bouillon", "polév"),
+            Category.DESSERT to listOf("cake", "cookie", "dessert", "pudding", "sweet", "cukr", "koláč"),
+            Category.BAKING to listOf("bake", "bread", "yeast", "oven", "pečení", "chléb"),
+            Category.BREAKFAST to listOf("breakfast", "porridge", "muesli", "snídan"),
+            Category.QUICK to listOf("quick", "30 min", "15 min", "fast", "rychl"),
+            Category.DIET to listOf("gluten", "vegan", "vegetarian", "keto", "low carb", "bezlepk")
+        )
+        for ((cat, keys) in map) {
+            for (k in keys) if (text.contains(k)) return cat
+        }
+        return Category.MAIN
+    }
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
@@ -45,7 +62,7 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
             try {
                 val allIng = recipe.allIngredients
                 val category = if (recipe.category == Category.UNKNOWN)
-                    RecipeClassifier.classify(recipe.title, allIng.map { it.name }, recipe.steps.map { it.instruction })
+                    classifyRecipe(recipe.title, allIng.map { it.name }, recipe.steps.map { it.instruction })
                 else recipe.category
                 val summary = recipe.summary ?: ai.generateSummary(recipe.title, allIng, recipe.steps)
                 val id = repo.createRecipe(recipe.copy(category = category, summary = summary))
@@ -86,7 +103,7 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
             try {
                 val allIng = recipe.allIngredients
                 val category = if (recipe.category == Category.UNKNOWN)
-                    RecipeClassifier.classify(recipe.title, allIng.map { it.name }, recipe.steps.map { it.instruction })
+                    classifyRecipe(recipe.title, allIng.map { it.name }, recipe.steps.map { it.instruction })
                 else recipe.category
                 val summary = recipe.summary ?: ai.generateSummary(recipe.title, allIng, recipe.steps)
                 val finalTagIds = if (tagIds.isNotEmpty()) {
@@ -113,7 +130,7 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
             try {
                 val allIng = recipe.allIngredients
                 val category = if (recipe.category == Category.UNKNOWN)
-                    RecipeClassifier.classify(recipe.title, allIng.map { it.name }, recipe.steps.map { it.instruction })
+                    classifyRecipe(recipe.title, allIng.map { it.name }, recipe.steps.map { it.instruction })
                 else recipe.category
                 val summary = recipe.summary ?: ai.generateSummary(recipe.title, allIng, recipe.steps)
                 val finalTagIds = if (tagIds.isNotEmpty()) {
@@ -155,7 +172,7 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
             try {
                 val allIng = recipe.allIngredients
                 val category = if (recipe.category == Category.UNKNOWN)
-                    RecipeClassifier.classify(recipe.title, allIng.map { it.name }, recipe.steps.map { it.instruction })
+                    classifyRecipe(recipe.title, allIng.map { it.name }, recipe.steps.map { it.instruction })
                 else recipe.category
                 val summary = recipe.summary ?: ai.generateSummary(recipe.title, allIng, recipe.steps)
                 repo.updateRecipe(recipe.copy(category = category, summary = summary))

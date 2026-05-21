@@ -1,6 +1,6 @@
 package com.tkolymp.napect.domain.model
 
-import java.util.*
+import java.time.Instant
 
 data class Recipe(
     val id: Long = 0L,
@@ -15,8 +15,8 @@ data class Recipe(
     val ingredientGroups: List<IngredientGroup> = emptyList(),
     val steps: List<Step> = emptyList(),
     val tags: List<Tag> = emptyList(),
-    val createdAt: Date = Date(),
-    val updatedAt: Date = Date(),
+    val createdAt: Instant = Instant.now(),
+    val updatedAt: Instant = Instant.now(),
 ) {
     /** Flat list of all ingredients across all groups, preserving group order. */
     val allIngredients: List<Ingredient> get() = ingredientGroups.flatMap { it.ingredients }

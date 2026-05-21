@@ -14,7 +14,7 @@ import com.tkolymp.napect.domain.model.Step
 import com.tkolymp.napect.data.local.entity.TagEntity
 import com.tkolymp.napect.domain.model.Tag
 import com.tkolymp.napect.domain.model.TagGroup
-import java.util.*
+import java.time.Instant
 
 fun RecipeWithDetails.toDomain(): Recipe = Recipe(
     id = recipe.id,
@@ -31,8 +31,8 @@ fun RecipeWithDetails.toDomain(): Recipe = Recipe(
         .map { it.toDomain() },
     steps = steps.sortedBy { it.stepNumber }.map { it.toDomain() },
     tags = tags.map { it.toDomain() },
-    createdAt = Date(recipe.createdAt),
-    updatedAt = Date(recipe.updatedAt)
+    createdAt = Instant.ofEpochMilli(recipe.createdAt),
+    updatedAt = Instant.ofEpochMilli(recipe.updatedAt)
 )
 
 fun Recipe.toEntity(): RecipeEntity = RecipeEntity(
@@ -45,8 +45,8 @@ fun Recipe.toEntity(): RecipeEntity = RecipeEntity(
     category = category.name,
     photo = photo,
     servingsBase = servingsBase,
-    createdAt = createdAt.time,
-    updatedAt = updatedAt.time,
+    createdAt = createdAt.toEpochMilli(),
+    updatedAt = updatedAt.toEpochMilli(),
 )
 
 // ─── Ingredient group ────────────────────────────────────────────────────────

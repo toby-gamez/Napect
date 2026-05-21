@@ -5,15 +5,13 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <include domain="database" path="napect.db" />
+        <include domain="file" path="photos/" />
+        <include domain="sharedpref" path="user_prefs.xml" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <include domain="database" path="napect.db" />
+        <include domain="file" path="photos/" />
+        <include domain="sharedpref" path="user_prefs.xml" />
     </device-transfer>
-    -->
 </data-extraction-rules>

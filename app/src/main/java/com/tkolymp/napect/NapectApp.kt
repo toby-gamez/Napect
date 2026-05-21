@@ -84,20 +84,12 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedButton
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FloatingActionButtonMenu
-import androidx.compose.material3.FloatingActionButtonMenuItem
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.ToggleFloatingActionButton
-import androidx.compose.material3.ToggleFloatingActionButtonDefaults
-import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
-import androidx.compose.material3.animateFloatingActionButton
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
@@ -113,7 +105,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.ui.graphics.Color
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun NapectApp(
     vm: RecipeViewModel,
@@ -564,55 +556,70 @@ fun NapectApp(
         }
 
         // FAB — rendered after the scrim so it always floats above it
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .navigationBarsPadding()
-                .padding(bottom = 80.dp + 16.dp, end = 16.dp),
-            contentAlignment = Alignment.BottomEnd
+        val showFab = currentRoute != "add" && currentRoute?.endsWith("/edit") != true && currentRoute?.endsWith("/make") != true && currentRoute?.startsWith("recipe/") != true
+        AnimatedVisibility(
+            visible = showFab,
+            enter = fadeIn(tween(200)) + scaleIn(tween(200)),
+            exit = fadeOut(tween(200)) + scaleOut(tween(200))
         ) {
-            FloatingActionButtonMenu(
-                expanded = fabMenuExpanded,
-                button = {
-                    ToggleFloatingActionButton(
-                        checked = fabMenuExpanded,
-                        onCheckedChange = { fabMenuExpanded = it },
-                        modifier = Modifier.animateFloatingActionButton(
-                            // hide FAB on add, edit, make and any recipe detail/make/edit route to avoid overlap
-                            visible = currentRoute != "add" && currentRoute?.endsWith("/edit") != true && currentRoute?.endsWith("/make") != true && currentRoute?.startsWith("recipe/") != true,
-                            alignment = Alignment.BottomEnd
-                        ),
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .navigationBarsPadding()
+                    .padding(bottom = 80.dp + 16.dp, end = 16.dp),
+                contentAlignment = Alignment.BottomEnd
+            ) {
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AnimatedVisibility(
+                        visible = fabMenuExpanded,
+                        enter = fadeIn(tween(200)),
+                        exit = fadeOut(tween(150))
                     ) {
-                        val imageVector by remember {
-                            derivedStateOf {
-                                if (checkedProgress > 0.5f) Icons.Filled.Close else Icons.Filled.Add
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "Zadat odkaz",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(end = 12.dp)
+                                )
+                                SmallFloatingActionButton(
+                                    onClick = {
+                                        fabMenuExpanded = false
+                                        showUrlDialog = true
+                                    }
+                                ) {
+                                    Icon(Icons.Filled.Link, contentDescription = null)
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "Napsat ručně",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(end = 12.dp)
+                                )
+                                SmallFloatingActionButton(
+                                    onClick = {
+                                        fabMenuExpanded = false
+                                        navController.navigate("add")
+                                    }
+                                ) {
+                                    Icon(Icons.Filled.Edit, contentDescription = null)
+                                }
                             }
                         }
+                    }
+                    FloatingActionButton(
+                        onClick = { fabMenuExpanded = !fabMenuExpanded }
+                    ) {
                         Icon(
-                            painter = rememberVectorPainter(imageVector),
+                            imageVector = if (fabMenuExpanded) Icons.Filled.Close else Icons.Filled.Add,
                             contentDescription = if (fabMenuExpanded) "Zavřít nabídku" else "Přidat recept",
-                            // Increase the main FAB icon size so it's more prominent
-                            modifier = Modifier.animateIcon({ checkedProgress }).size(32.dp)
+                            modifier = Modifier.size(32.dp)
                         )
                     }
-                },
-            ) {
-                FloatingActionButtonMenuItem(
-                    onClick = {
-                        fabMenuExpanded = false
-                        showUrlDialog = true
-                    },
-                    text = { Text("Zadat odkaz", style = MaterialTheme.typography.bodyLarge) },
-                    icon = { Icon(Icons.Filled.Link, contentDescription = null) },
-                )
-                FloatingActionButtonMenuItem(
-                    onClick = {
-                        fabMenuExpanded = false
-                        navController.navigate("add")
-                    },
-                    text = { Text("Napsat ručně", style = MaterialTheme.typography.bodyLarge) },
-                    icon = { Icon(Icons.Filled.Edit, contentDescription = null) },
-                )
+                }
             }
         }
     } // end outer Box

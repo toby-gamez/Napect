@@ -4,7 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import com.tkolymp.napect.data.ai.RecipeClassifier
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.tkolymp.napect.data.network.ImportedRecipeData
 import com.tkolymp.napect.data.network.groupIngredients
 import com.tkolymp.napect.data.network.UrlImportService
@@ -35,6 +36,7 @@ sealed interface UrlImportState {
 
 @HiltViewModel
 class UrlImportViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val service: UrlImportService,
     private val repo: RecipeRepository,
     private val gemini: GeminiNanoService,
@@ -68,7 +70,6 @@ class UrlImportViewModel @Inject constructor(
             _state.value = UrlImportState.Loading
             try {
                 // run ML Kit text recognition off the main thread to avoid blocking the UI
-                val context = com.tkolymp.napect.AppContextHolder.context ?: throw IllegalStateException("No context")
                 val (inputImage, recognizer) = withContext(Dispatchers.IO) {
                     val img = com.google.mlkit.vision.common.InputImage.fromFilePath(context, uri)
                     val r = com.google.mlkit.vision.text.TextRecognition.getClient(
@@ -120,6 +121,22 @@ class UrlImportViewModel @Inject constructor(
         }
     }
 
+    private fun classifyRecipe(title: String?, ingredients: List<String>, steps: List<String>): com.tkolymp.napect.domain.model.Category {
+        val text = (listOfNotNull(title) + ingredients + steps).joinToString(" ").lowercase()
+        val map = mapOf(
+            com.tkolymp.napect.domain.model.Category.SOUP to listOf("soup", "broth", "bouillon", "polév"),
+            com.tkolymp.napect.domain.model.Category.DESSERT to listOf("cake", "cookie", "dessert", "pudding", "sweet", "cukr", "koláč"),
+            com.tkolymp.napect.domain.model.Category.BAKING to listOf("bake", "bread", "yeast", "oven", "pečení", "chléb"),
+            com.tkolymp.napect.domain.model.Category.BREAKFAST to listOf("breakfast", "porridge", "muesli", "snídan"),
+            com.tkolymp.napect.domain.model.Category.QUICK to listOf("quick", "30 min", "15 min", "fast", "rychl"),
+            com.tkolymp.napect.domain.model.Category.DIET to listOf("gluten", "vegan", "vegetarian", "keto", "low carb", "bezlepk")
+        )
+        for ((cat, keys) in map) {
+            for (k in keys) if (text.contains(k)) return cat
+        }
+        return com.tkolymp.napect.domain.model.Category.MAIN
+    }
+
     fun fetchUrl(url: String) {
         viewModelScope.launch {
             _state.value = UrlImportState.Loading
@@ -156,7 +173,7 @@ class UrlImportViewModel @Inject constructor(
 
             val allIngredients = domainGroups.flatMap { it.ingredients }
             val steps = data.steps.mapIndexed { idx, s -> Step(stepNumber = idx + 1, instruction = s) }
-            val category = RecipeClassifier.classify(data.title, data.ingredients, data.steps)
+            val category = classifyRecipe(data.title, data.ingredients, data.steps)
             val recipe = Recipe(
                 title = data.title,
                 summary = data.description ?: ai?.generateSummary(data.title, allIngredients, steps, data),
