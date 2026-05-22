@@ -1,5 +1,6 @@
 package com.tkolymp.napect
 
+import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
@@ -11,10 +12,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 
 enum class AppDestinations(
     val label: String,
+    @StringRes val labelRes: Int,
     val outlinedIcon: ImageVector,
     val filledIcon: ImageVector,
 ) {
-    HOME("Domů", Icons.Outlined.Home, Icons.Filled.Home),
-    FAVORITES("Oblíbené", Icons.Outlined.FavoriteBorder, Icons.Filled.Favorite),
-    SETTINGS("Nastavení", Icons.Outlined.Settings, Icons.Filled.Settings),
+    HOME("Domů", R.string.nav_home, Icons.Outlined.Home, Icons.Filled.Home),
+    FAVORITES("Oblíbené", R.string.nav_favorites, Icons.Outlined.FavoriteBorder, Icons.Filled.Favorite),
+    SETTINGS("Nastavení", R.string.nav_settings, Icons.Outlined.Settings, Icons.Filled.Settings),
 }

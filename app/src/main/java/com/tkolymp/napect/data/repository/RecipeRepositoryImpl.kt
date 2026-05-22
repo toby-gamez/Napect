@@ -2,6 +2,7 @@ package com.tkolymp.napect.data.repository
 
 import com.tkolymp.napect.data.local.dao.IngredientGroupInsert
 import com.tkolymp.napect.data.local.dao.RecipeDao
+import com.tkolymp.napect.data.local.RecipePagingSource
 import com.tkolymp.napect.data.local.dao.TagDao
 import com.tkolymp.napect.data.ai.TagSuggester
 import com.tkolymp.napect.data.ai.TagSuggestion
@@ -12,11 +13,16 @@ import com.tkolymp.napect.domain.model.TagGroup
 import com.tkolymp.napect.domain.model.Category
 import com.tkolymp.napect.data.mapper.toDomain
 import com.tkolymp.napect.data.mapper.toEntity
+import com.tkolymp.napect.data.mapper.toDomainListItem
 import com.tkolymp.napect.domain.model.Recipe
+import com.tkolymp.napect.domain.model.RecipeListItem
 import com.tkolymp.napect.domain.repository.RecipeRepository
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import android.util.Log
+import timber.log.Timber
 import java.text.Normalizer
 
 class RecipeRepositoryImpl(
@@ -25,6 +31,15 @@ class RecipeRepositoryImpl(
 ) : RecipeRepository {
 
     // ─── Helpers ────────────────────────────────────────────────────────────────
+
+    private fun sanitizeFtsQuery(query: String): String {
+        return query
+            .replace(Regex("[\"()*:<>~!^]"), " ")
+            .trim()
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { "\"$it\"" }
+    }
 
     /**
      * Convert domain ingredient groups into the DAO insert containers, ensuring every
@@ -77,6 +92,10 @@ class RecipeRepositoryImpl(
         dao.deleteRecipeById(id)
     }
 
+    override suspend fun updatePhotoPath(id: Long, path: String?) {
+        dao.updatePhotoPath(id, path)
+    }
+
     override fun getAllRecipes(): Flow<List<Recipe>> =
         dao.getAllRecipesWithDetails().map { list -> list.map { it.toDomain() } }
 
@@ -84,7 +103,30 @@ class RecipeRepositoryImpl(
         dao.getRecipeWithDetails(id).map { it?.toDomain() }
 
     override fun search(query: String): Flow<List<Recipe>> =
-        dao.search(query).map { list -> list.map { it.toDomain() } }
+        dao.search(sanitizeFtsQuery(query)).map { list -> list.map { it.toDomain() } }
+
+    // ─── Lightweight list queries ───────────────────────────────────────────
+
+    override fun getAllRecipeListItems(): Flow<List<RecipeListItem>> =
+        dao.getAllRecipeListItems().map { list -> list.map { it.toDomainListItem() } }
+
+    override fun getRecipeListItemsByTag(tagId: Long): Flow<List<RecipeListItem>> =
+        dao.getRecipeListItemsByTag(tagId).map { list -> list.map { it.toDomainListItem() } }
+
+    override fun searchRecipeListItems(query: String): Flow<List<RecipeListItem>> =
+        dao.searchRecipeListItems(sanitizeFtsQuery(query)).map { list -> list.map { it.toDomainListItem() } }
+
+    override fun searchRecipeListItemsByTag(tagId: Long, query: String): Flow<List<RecipeListItem>> =
+        dao.searchRecipeListItemsByTag(tagId, sanitizeFtsQuery(query)).map { list -> list.map { it.toDomainListItem() } }
+
+    // ─── Paged queries ──────────────────────────────────────────────────────
+
+    override fun getPagedRecipeListItems(tagId: Long?, query: String): Flow<PagingData<RecipeListItem>> {
+        val sanitized = if (query.isNotBlank()) sanitizeFtsQuery(query) else ""
+        return Pager(PagingConfig(pageSize = 20)) {
+            RecipePagingSource(dao, tagId, sanitized)
+        }.flow
+    }
 
     override suspend fun toggleFavorite(id: Long, value: Boolean) {
         dao.updateFavorite(id, value)
@@ -150,7 +192,7 @@ class RecipeRepositoryImpl(
             difficulty = "Jednoduché"
         }
 
-        try { Log.d("RecipeRepo", "Inferred difficulty for '${recipe.title}': $difficulty (score=$score, ing=$ingCount, steps=$stepCount, mins=$estimatedMins)") } catch (_: Exception) { }
+        Timber.d("Inferred difficulty for '%s': %s (score=%d, ing=%d, steps=%d, mins=%s)", recipe.title, difficulty, score, ingCount, stepCount, estimatedMins)
         suggestions.add(difficulty to TagGroup.DIFFICULTY)
 
         val confirmed = mutableListOf<com.tkolymp.napect.domain.model.Tag>()

@@ -9,70 +9,61 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.tween
+import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.paging.PagingData
 import com.tkolymp.napect.R
 import com.tkolymp.napect.data.local.PhotoManager
 import com.tkolymp.napect.domain.model.RecipeListItem
 import com.tkolymp.napect.domain.model.Tag
 import com.tkolymp.napect.domain.model.TagGroup
+import kotlinx.coroutines.flow.Flow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RecipeListScreen(
-    recipes: List<RecipeListItem>,
+fun PagedRecipeListScreen(
+    pagedRecipes: Flow<PagingData<RecipeListItem>>,
     onItemClick: (Long) -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(0.dp),
-    // availableTags should contain TagGroup.CATEGORY and TagGroup.OTHER tags
     availableTags: List<Tag> = emptyList(),
-    // currently selected tag id used for filtering (null = all)
     selectedTagId: Long? = null,
     onTagSelected: (Long?) -> Unit = {},
     onDelete: ((Long) -> Unit)? = null,
     emptyMessage: String = "Zatím žádné recepty",
-    isLoading: Boolean = false,
-    errorMessage: String? = null
+    errorMessage: String? = null,
 ) {
-    // Keep a small outer padding and apply scaffold contentPadding to the LazyColumn
+    val lazyItems = pagedRecipes.collectAsLazyPagingItems()
+
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
-        // error banner
         if (!errorMessage.isNullOrBlank()) {
-            androidx.compose.material3.Card(
+            Card(
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
             ) {
@@ -85,14 +76,11 @@ fun RecipeListScreen(
             }
         }
 
-        // tag filter row (replaces category chips). Show tags from Category and Other groups
         val scrollState = rememberScrollState()
         Row(modifier = Modifier.horizontalScroll(scrollState).padding(bottom = 8.dp)) {
-            // show an "All" chip
             val allSelected = selectedTagId == null
             FilterChip(selected = allSelected, onClick = { onTagSelected(null) }, label = { Text(stringResource(R.string.filter_all)) })
 
-            // Only show CATEGORY and OTHER tags from the provided availableTags list
             val tagCandidates = availableTags.filter { it.group == TagGroup.CATEGORY || it.group == TagGroup.OTHER }
             for (t in tagCandidates) {
                 val sel = selectedTagId == t.id
@@ -100,28 +88,21 @@ fun RecipeListScreen(
             }
         }
 
-        if (isLoading) {
+        if (lazyItems.itemCount == 0 && lazyItems.loadState.refresh is androidx.paging.LoadState.Loading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
-            }
-        } else if (recipes.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(emptyMessage, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
             }
         }
 
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
-            items(recipes) { r ->
-                // animate each card's placement and visibility
-                AnimatedVisibility(visible = true, enter = fadeIn(animationSpec = tween(200)), exit = fadeOut()) {
+            items(lazyItems.itemCount) { index ->
+                val r = lazyItems[index]
+                if (r != null) {
                     Card(modifier = Modifier
                         .padding(8.dp)
                         .clickable { onItemClick(r.id) }
-                        .animateContentSize()) {
+                    ) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            // compact detail-like header: photo, title, summary, tags
                             if (r.photoPath != null) {
                                 val bmp = PhotoManager.loadBitmap(r.photoPath!!)
                                 if (bmp != null) {
@@ -130,7 +111,6 @@ fun RecipeListScreen(
                                 }
                             }
 
-                            // Title row
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                                 Text(r.title, style = MaterialTheme.typography.headlineSmall)
                                 if (onDelete != null) {
@@ -157,6 +137,10 @@ fun RecipeListScreen(
                         }
                     }
                 }
+            }
+
+            if (lazyItems.loadState.append is androidx.paging.LoadState.Loading) {
+                item { Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
             }
         }
     }

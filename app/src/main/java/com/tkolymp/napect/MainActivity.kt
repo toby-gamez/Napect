@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import com.tkolymp.napect.data.local.DatabaseProvider
 import com.tkolymp.napect.data.network.UrlImportService
+import com.tkolymp.napect.ui.recipes.UrlImportViewModel
 import com.tkolymp.napect.data.ai.GeminiNanoService
 import com.tkolymp.napect.data.ai.AiClient
 import androidx.compose.ui.Modifier
@@ -22,19 +23,17 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import dagger.hilt.android.AndroidEntryPoint
-import com.tkolymp.napect.domain.repository.RecipeRepository
-import com.tkolymp.napect.ui.recipes.RecipeViewModel
-import com.tkolymp.napect.ui.recipes.UrlImportViewModel
+import timber.log.Timber
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    // Use Hilt-provided ViewModels
-    private val vm: com.tkolymp.napect.ui.recipes.RecipeViewModel by viewModels()
-    private val importVm: com.tkolymp.napect.ui.recipes.UrlImportViewModel by viewModels()
+    // Needed for onNewIntent runtime shares (same instance as in NapectApp via hiltViewModel)
+    private val importVm: UrlImportViewModel by viewModels()
 
     @Inject lateinit var importService: UrlImportService
     @Inject lateinit var geminiService: GeminiNanoService
     @Inject lateinit var aiClient: AiClient
+    @Inject lateinit var settingsRepo: SettingsRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,7 +48,9 @@ class MainActivity : ComponentActivity() {
                 val repo = com.tkolymp.napect.data.repository.RecipeRepositoryImpl(db.recipeDao(), db.tagDao())
                 repo.ensureDefaultTags()
                 repo.migrateEnglishTagsToCzech()
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                Timber.w(e, "Failed to ensure default tags on startup")
+            }
         }
 
         // detect shared URL/text or shared image
@@ -68,7 +69,6 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val settingsRepo = SettingsRepository(applicationContext)
             val prefs by settingsRepo.prefsFlow.collectAsState(initial = UserPreferences())
             val dark = when (prefs.themeMode) {
                 ThemeMode.AUTO -> isSystemInDarkTheme()
@@ -78,11 +78,7 @@ class MainActivity : ComponentActivity() {
             }
 
             NapectTheme(darkTheme = dark) {
-                // deliver the initial shared values to the ViewModel before composing the app so the import screen
-                // can act on them. Use receiveShared* APIs so the ViewModel exposes proper state flows.
-                importVm.receiveSharedUrl(sharedUrl)
-                importVm.receiveSharedImageUri(sharedImageUri)
-                NapectApp(vm, importVm, sharedUrl, sharedImageUri)
+                NapectApp(initialSharedUrl = sharedUrl, initialSharedImageUri = sharedImageUri)
             }
         }
     }

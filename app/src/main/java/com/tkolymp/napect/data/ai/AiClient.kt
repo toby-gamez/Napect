@@ -1,5 +1,6 @@
 package com.tkolymp.napect.data.ai
 
+import timber.log.Timber
 import com.tkolymp.napect.data.network.ImportedRecipeData
 import com.tkolymp.napect.domain.model.Ingredient
 import com.tkolymp.napect.domain.model.Step
@@ -33,8 +34,8 @@ class DefaultAiClient(private val gemini: GeminiNanoService?) : AiClient {
                 }
                 // else fall through to local summarizer (no URL)
             }
-        } catch (_: Exception) {
-            // ignore and fallback
+        } catch (e: Exception) {
+            Timber.w(e, "Gemini summarization failed, using fallback")
         }
 
         // Lightweight summarizer: title + top 3 ingredients summary
@@ -66,7 +67,9 @@ class DefaultAiClient(private val gemini: GeminiNanoService?) : AiClient {
                     }
                 }
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            Timber.w(e, "Gemini difficulty inference failed")
+        }
         return null
     }
 }

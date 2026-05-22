@@ -1,3 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Napect</string>
+
+    <!-- Bottom navigation -->
+    <string name="nav_home">Domů</string>
+    <string name="nav_favorites">Oblíbené</string>
+    <string name="nav_settings">Nastavení</string>
+
+    <!-- Top app bar -->
+    <string name="title_add_recipe">Přidat recept</string>
+    <string name="title_recipe">Recept</string>
+    <string name="title_edit_recipe">Upravit recept</string>
+    <string name="action_menu">Akce</string>
+    <string name="pick_photo">Vybrat fotografii</string>
+    <string name="open_camera">Otevřít fotoaparát</string>
+
+    <!-- Search -->
+    <string name="search_hint">Hledat</string>
+    <string name="search_clear">Vyčistit</string>
+
+    <!-- General buttons -->
+    <string name="save">Uložit</string>
+    <string name="cancel">Zrušit</string>
+    <string name="delete">Smazat</string>
+    <string name="add">Přidat</string>
+    <string name="paste">Vložit</string>
+    <string name="import_action">Importovat</string>
+    <string name="cook">Kuchtit</string>
+    <string name="start_cooking">Spustit vaření</string>
+    <string name="done">Hotovo</string>
+    <string name="previous">Předchozí</string>
+    <string name="next">Další</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+
+    <!-- Filter -->
+    <string name="filter_all">Vše</string>
+
+    <!-- Recipe list -->
+    <string name="empty_recipes">Zatím žádné recepty</string>
+    <string name="recipe_photo">Foto receptu</string>
+    <string name="delete_recipe">Smazat recept</string>
+    <string name="add_to_favorites">Přidat do oblíbených</string>
+    <string name="remove_from_favorites">Odebrat z oblíbených</string>
+    <string name="ai_badge">AI</string>
+
+    <!-- Add/edit recipe -->
+    <string name="label_title">Název</string>
+    <string name="label_summary">Popis</string>
+    <string name="selected_photo">Vybraná fotografie</string>
+    <string name="remove_photo">Odebrat fotografii</string>
+    <string name="section_ingredients">Ingredience</string>
+    <string name="section_tags">Štítky</string>
+    <string name="section_steps">Postup</string>
+    <string name="section_suggested">Navrhované</string>
+    <string name="section_name_hint">Název sekce (např. Těsto, Poleva)</string>
+    <string name="remove_section">Odebrat sekci</string>
+    <string name="ingredient_name_hint">jméno</string>
+    <string name="remove_ingredient">Odebrat ingredienci</string>
+    <string name="add_ingredient">Přidat ingredienci</string>
+    <string name="add_section">Přidat sekci</string>
+    <string name="add_step">Přidat krok</string>
+    <string name="base_servings_decrease">Snížit základní porce</string>
+    <string name="base_servings_increase">Zvýšit základní porce</string>
+    <string name="base_servings_label">Základní porce: %d</string>
+
+    <!-- Cooking / make screen -->
+    <string name="ingredients_header">Ingredience  (%d / %d)</string>
+    <string name="servings_decrease">Snížit porce</string>
+    <string name="servings_increase">Zvýšit porce</string>
+    <string name="servings_label">Porce: %d</string>
+    <string name="default_servings_label">Výchozí porce: %d</string>
+    <string name="proceed_to_steps">Pokračovat k postupu</string>
+    <string name="no_steps">Žádné kroky k zobrazení</string>
+    <string name="step_header">Postup — Krok %1$d / %2$d</string>
+    <string name="step_number">Krok %d</string>
+    <string name="timer_pause">Pozastavit</string>
+    <string name="timer_start">Spustit</string>
+
+    <!-- Recipe detail -->
+    <string name="menu">Menu</string>
+    <string name="delete_recipe_title">Smazat recept?</string>
+    <string name="delete_recipe_message">Recept bude trvale smazán.</string>
+    <string name="plan_cooking_success">Vaření naplánováno na %1$d.%2$d.%3$d</string>
+    <string name="plan_cooking_error">Chyba při plánování</string>
+
+    <!-- Settings -->
+    <string name="section_theme">Motiv</string>
+    <string name="section_tags_settings">Štítky</string>
+    <string name="delete_tag">Smazat štítek</string>
+    <string name="delete_tag_title">Smazat štítek?</string>
+    <string name="delete_tag_message">Tím odeberete štítek ze všech receptů. Jste si jistí?</string>
+    <string name="tag_name_hint">Štítek</string>
+    <string name="create_tag">Vytvořit štítek</string>
+    <string name="restore_default_tags">Obnovit výchozí štítky</string>
+    <string name="default_servings_decrease">Snížit výchozí porce</string>
+    <string name="default_servings_increase">Zvýšit výchozí porce</string>
+
+    <!-- URL import dialog -->
+    <string name="import_url_title">Importovat z odkazu</string>
+    <string name="import_url_hint">Odkaz na recept</string>
+
+    <!-- FAB speed dial -->
+    <string name="fab_add_recipe">Přidat recept</string>
+    <string name="fab_close_menu">Zavřít nabídku</string>
+    <string name="fab_enter_url">Zadat odkaz</string>
+    <string name="fab_write_manually">Napsat ručně</string>
+
+    <!-- Voice input -->
+    <string name="voice_input">Hlasový vstup</string>
+
+    <!-- Snackbar / errors -->
+    <string name="error_load_image">Nepodařilo se načíst obrázek: %s</string>
+    <string name="error_open_camera">Nepodařilo se otevřít fotoaparát: %s</string>
+    <string name="error_camera_permission">Pro focení je nutné povolit přístup k fotoaparátu</string>
+    <string name="error_import_failed">Import se nezdařil: %s</string>
+    <string name="info_opening_camera">Otevírám fotoaparát…</string>
+
+    <!-- Tag group display names -->
+    <string name="tag_group_difficulty">Obtížnost</string>
+    <string name="tag_group_time">Čas</string>
+    <string name="tag_group_diet">Dieta</string>
+    <string name="tag_group_cuisine">Kuchyně</string>
+    <string name="tag_group_method">Způsob přípravy</string>
+    <string name="tag_group_meal">Jídlo</string>
+    <string name="tag_group_category">Kategorie</string>
+    <string name="tag_group_other">Ostatní</string>
 </resources>

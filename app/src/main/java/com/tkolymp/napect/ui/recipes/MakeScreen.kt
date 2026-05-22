@@ -55,9 +55,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.tkolymp.napect.R
 import com.tkolymp.napect.domain.model.Ingredient
+import com.tkolymp.napect.data.local.PhotoManager
 import com.tkolymp.napect.domain.model.Recipe
 import kotlinx.coroutines.delay
 import com.tkolymp.napect.data.local.SettingsRepository
@@ -74,7 +77,7 @@ fun MakeScreen(
     val context = LocalContext.current
     val activity = context as? Activity
     // Load user prefs to prefill servings for the prepare (Make) screen
-    val repo = SettingsRepository(context)
+    val repo = remember { SettingsRepository(context) }
     val prefs by repo.prefsFlow.collectAsState(initial = com.tkolymp.napect.data.local.UserPreferences())
     var servings by remember(recipe, prefs) { mutableStateOf(prefs.defaultServings.coerceAtLeast(1)) }
 
@@ -136,9 +139,18 @@ fun MakeScreen(
             // add top padding to leave room for the floating timer so it doesn't overlap content
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 56.dp, bottom = 16.dp)) {
                 // Photo (kept at top for context)
-                recipe.photo?.let { bytes ->
-                    val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    Image(bitmap = bmp.asImageBitmap(), contentDescription = "Foto receptu", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
+                if (recipe.photoPath != null) {
+                    val bmp = PhotoManager.loadBitmap(recipe.photoPath!!)
+                    if (bmp != null) {
+                        val img = bmp.asImageBitmap()
+                        Image(bitmap = img, contentDescription = stringResource(R.string.recipe_photo), modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
+                     }
+                 } else if (recipe.photo != null) {
+                     val bmp = sampledBitmap(recipe.photo!!)
+                     if (bmp != null) {
+                         val img = bmp.asImageBitmap()
+                         Image(bitmap = img, contentDescription = stringResource(R.string.recipe_photo), modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
+                    }
                 }
 
                 // Title row
@@ -148,10 +160,7 @@ fun MakeScreen(
                         // show favorite toggle using filled icon (outlined not available here)
                         if (onToggleFavorite != null) {
                             IconButton(onClick = { onToggleFavorite(recipe.id, !recipe.isFavorite) }) {
-                                val favIcon = try {
-                                    Icons.Filled.Favorite
-                                } catch (_: Exception) { Icons.Filled.Favorite }
-                                Icon(imageVector = favIcon, contentDescription = "Oblíbené")
+                                Icon(imageVector = Icons.Filled.Favorite, contentDescription = stringResource(R.string.nav_favorites))
                             }
                         }
                     }
@@ -162,16 +171,16 @@ fun MakeScreen(
                 // Pages: 0 == ingredient checklist, 1..N == step pages (no animation to avoid overlapping)
                 if (pageIndex == 0) {
                     val doneCount = allIngredients.count { checked[it.id] == true }
-                    Text("Ingredience  ($doneCount / ${allIngredients.size})", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.ingredients_header, doneCount, allIngredients.size), style = MaterialTheme.typography.titleMedium)
                     Spacer(modifier = Modifier.size(6.dp))
                     LinearProgressIndicator(progress = if (allIngredients.isEmpty()) 0f else doneCount.toFloat() / allIngredients.size.toFloat(), modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
 
                     // Portion selector moved here: controls how ingredients are scaled while preparing
                     Spacer(modifier = Modifier.size(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { if (servings > 1) servings-- }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Remove, contentDescription = "Snížit porce") }
-                        Text("  Porce: $servings  ", modifier = Modifier.padding(horizontal = 8.dp))
-                        IconButton(onClick = { servings++ }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Add, contentDescription = "Zvýšit porce") }
+                        IconButton(onClick = { if (servings > 1) servings-- }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Remove, contentDescription = stringResource(R.string.servings_decrease)) }
+                         Text(stringResource(R.string.servings_label, servings), modifier = Modifier.padding(horizontal = 8.dp))
+                         IconButton(onClick = { servings++ }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Add, contentDescription = stringResource(R.string.servings_increase)) }
                     }
 
                     Column {
@@ -197,29 +206,29 @@ fun MakeScreen(
                             }
                         }
                         Spacer(modifier = Modifier.size(12.dp))
-                        Button(onClick = { if (totalPages > 1) pageIndex = 1 }, modifier = Modifier.fillMaxWidth()) { Text("Pokračovat k postupu") }
+                        Button(onClick = { if (totalPages > 1) pageIndex = 1 }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.proceed_to_steps)) }
                     }
                 } else {
                     val stepIndex = pageIndex - 1
                     val step = steps.getOrNull(stepIndex)
                     if (step == null) {
-                        Text("Žádné kroky k zobrazení", modifier = Modifier.padding(top = 8.dp))
+                        Text(stringResource(R.string.no_steps), modifier = Modifier.padding(top = 8.dp))
                     } else {
                         // use bodyLarge for the step header as requested
-                        Text("Postup — Krok ${stepIndex + 1} / $stepCount", style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(R.string.step_header, stepIndex + 1, stepCount), style = MaterialTheme.typography.bodyLarge)
                         Spacer(modifier = Modifier.size(6.dp))
                         LinearProgressIndicator(progress = (stepIndex + 1).toFloat() / stepCount.toFloat(), modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
                         ElevatedCard(colors = CardDefaults.elevatedCardColors(), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Krok ${stepIndex + 1}", style = MaterialTheme.typography.displaySmall)
+                                Text(stringResource(R.string.step_number, stepIndex + 1), style = MaterialTheme.typography.displaySmall)
                                 Spacer(modifier = Modifier.size(8.dp))
                                 Text(step.instruction, style = MaterialTheme.typography.bodyLarge)
                                 Spacer(modifier = Modifier.size(12.dp))
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Button(onClick = { if (pageIndex > 0) pageIndex-- }, enabled = pageIndex > 0) { Text("Předchozí") }
-                                    Button(onClick = {
-                                        if (pageIndex < totalPages - 1) pageIndex++ else onFinish?.invoke()
-                                    }, enabled = true) { Text(if (pageIndex < totalPages - 1) "Další" else "Hotovo") }
+                                    Button(onClick = { if (pageIndex > 0) pageIndex-- }, enabled = pageIndex > 0) { Text(stringResource(R.string.previous)) }
+                                     Button(onClick = {
+                                         if (pageIndex < totalPages - 1) pageIndex++ else onFinish?.invoke()
+                                     }, enabled = true) { Text(if (pageIndex < totalPages - 1) stringResource(R.string.next) else stringResource(R.string.done)) }
                                 }
                             }
                         }
@@ -233,7 +242,7 @@ fun MakeScreen(
             Box(modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
                 ElevatedCard(shape = RoundedCornerShape(12.dp), modifier = Modifier.clickable { isRunning = !isRunning }) {
                     Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = if (isRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = null)
+                        Icon(imageVector = if (isRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (isRunning) stringResource(R.string.timer_pause) else stringResource(R.string.timer_start))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(formatElapsed(elapsedSeconds))
                     }
@@ -245,10 +254,10 @@ fun MakeScreen(
                         ElevatedCard(colors = CardDefaults.elevatedCardColors(), shape = RoundedCornerShape(28.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
                                 Button(onClick = { isRunning = !isRunning }, modifier = Modifier.height(48.dp)) {
-                                    Icon(if (isRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(if (isRunning) "Stop" else "Start")
-                                }
+                                     Icon(if (isRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow, contentDescription = if (isRunning) stringResource(R.string.timer_pause) else stringResource(R.string.timer_start))
+                                     Spacer(modifier = Modifier.width(8.dp))
+                                     Text(if (isRunning) stringResource(R.string.stop) else stringResource(R.string.start))
+                                 }
                             }
                         }
             }

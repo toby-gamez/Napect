@@ -11,6 +11,7 @@ data class Recipe(
     val isFavorite: Boolean = false,
     val category: Category = Category.UNKNOWN,
     val photo: ByteArray? = null,
+    val photoPath: String? = null,
     val servingsBase: Int = 1,
     val ingredientGroups: List<IngredientGroup> = emptyList(),
     val steps: List<Step> = emptyList(),

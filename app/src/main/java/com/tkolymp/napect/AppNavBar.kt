@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.material.icons.Icons
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -25,7 +26,7 @@ fun AppNavBar(
                         val image: ImageVector = if (dest == currentDestination) dest.filledIcon else dest.outlinedIcon
                         Icon(imageVector = image, modifier = Modifier.size(30.dp), contentDescription = dest.label)
                     },
-                    label = { Text(dest.label) },
+                    label = { Text(stringResource(dest.labelRes)) },
                     selected = dest == currentDestination,
                     onClick = { onDestinationChange(dest) }
                 )

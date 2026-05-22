@@ -23,12 +23,19 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import android.Manifest
 import android.content.Intent
-import android.provider.MediaStore
 import android.content.pm.PackageManager
-import android.widget.Toast
+
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import timber.log.Timber
+import kotlinx.coroutines.launch
+import com.tkolymp.napect.LocalSnackbarHostState
+import com.tkolymp.napect.data.local.PhotoManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,9 +45,10 @@ import androidx.compose.runtime.SnapshotMutationPolicy
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.tkolymp.napect.R
 import java.io.ByteArrayOutputStream
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.layout.height
 import com.tkolymp.napect.domain.model.Ingredient
 import com.tkolymp.napect.domain.model.IngredientGroup
@@ -142,8 +150,22 @@ fun AddRecipeScreen(
     }
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbar = LocalSnackbarHostState.current
     var photoBytes by remember(init) { mutableStateOf<ByteArray?>(init?.photo) }
+    var photoPath by remember(init) { mutableStateOf<String?>(init?.photoPath) }
     var sourceUrl by remember { mutableStateOf<String?>(init?.sourceUrl) }
+
+    LaunchedEffect(init) {
+        if (init?.photoPath != null && init?.photo == null) {
+            val bmp = PhotoManager.loadBitmap(init.photoPath!!)
+            if (bmp != null) {
+                val baos = java.io.ByteArrayOutputStream()
+                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, baos)
+                photoBytes = baos.toByteArray()
+            }
+        }
+    }
 
     // ─── Camera & gallery launchers ───────────────────────────────────────────
 
@@ -157,7 +179,7 @@ fun AddRecipeScreen(
                 }
                 importVm?.importImage(uri)
             } catch (e: Exception) {
-                    Toast.makeText(context, "Nepodařilo se načíst obrázek: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+                    scope.launch { snackbar.showSnackbar(context.getString(R.string.error_load_image, e.localizedMessage ?: e.javaClass.simpleName)) }
             }
         }
     }
@@ -175,7 +197,7 @@ fun AddRecipeScreen(
                     }
                     importVm?.importImage(uri)
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) { Timber.w(e) }
         }
     }
 
@@ -192,17 +214,18 @@ fun AddRecipeScreen(
                 for (res in resList) {
                     context.grantUriPermission(res.activityInfo.packageName, uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-            } catch (_: Exception) { }
+            } catch (e: Exception) { Timber.w(e) }
             takePictureLauncher.launch(uri)
-            Toast.makeText(context, "Otevírám fotoaparát…", Toast.LENGTH_SHORT).show()
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.info_opening_camera)) }
         } catch (e: Exception) {
-            Toast.makeText(context, "Nepodařilo se otevřít fotoaparát: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+            Timber.w(e)
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.error_open_camera, e.localizedMessage ?: e.javaClass.simpleName)) }
         }
     }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(RequestPermission()) { granted ->
         if (granted) launchCameraInternal()
-        else Toast.makeText(context, "Pro focení je nutné povolit přístup k fotoaparátu", Toast.LENGTH_SHORT).show()
+        else scope.launch { snackbar.showSnackbar(context.getString(R.string.error_camera_permission)) }
     }
 
     val openCameraAction: () -> Unit = {
@@ -213,7 +236,8 @@ fun AddRecipeScreen(
                 cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
             }
         } catch (e: Exception) {
-            Toast.makeText(context, "Nepodařilo se otevřít fotoaparát: ${e.localizedMessage ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+            Timber.w(e)
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.error_open_camera, e.localizedMessage ?: e.javaClass.simpleName)) }
         }
     }
 
@@ -247,7 +271,8 @@ fun AddRecipeScreen(
                                         if (a == kotlin.math.floor(a)) a.toInt().toString() else a.toString()
                                     } ?: ""
                                     defaultGroup.ingredients.add(IngredientInputState(amtStr, parsed.unit ?: "", parsed.name))
-                                } catch (_: Exception) {
+                                } catch (e: Exception) {
+                                    Timber.w(e, "Ingredient parse failed, using raw text")
                                     defaultGroup.ingredients.add(IngredientInputState(initialName = raw))
                                 }
                             }
@@ -263,7 +288,8 @@ fun AddRecipeScreen(
                                             if (a == kotlin.math.floor(a)) a.toInt().toString() else a.toString()
                                         } ?: ""
                                         gs.ingredients.add(IngredientInputState(amtStr, parsed.unit ?: "", parsed.name))
-                                    } catch (_: Exception) {
+                                    } catch (e: Exception) {
+                                        Timber.w(e, "Ingredient parse failed, using raw text")
                                         gs.ingredients.add(IngredientInputState(initialName = raw))
                                     }
                                 }
@@ -282,10 +308,10 @@ fun AddRecipeScreen(
                     try {
                         val preview = buildPreviewRecipe(init, title = data.title, summary = data.description, ingredientGroups = ingredientGroups, steps = steps, sourceUrl = data.sourceUrl, servingsBase = servingsBase)
                         onSuggest(preview)
-                    } catch (_: Exception) { }
+                    } catch (e: Exception) { Timber.w(e) }
                 }
                 is UrlImportState.Error -> {
-                    Toast.makeText(context, "Import se nezdařil: ${(importState as UrlImportState.Error).message}", Toast.LENGTH_LONG).show()
+                    scope.launch { snackbar.showSnackbar(context.getString(R.string.error_import_failed, (importState as UrlImportState.Error).message)) }
                 }
                 else -> {}
             }
@@ -301,7 +327,7 @@ fun AddRecipeScreen(
             .debounce(700)
             .collectLatest { preview ->
                 if (preview.title.isNotBlank() || preview.allIngredients.isNotEmpty() || preview.steps.isNotEmpty()) {
-                    try { onSuggest(preview) } catch (_: Exception) { }
+                    try { onSuggest(preview) } catch (e: Exception) { Timber.w(e) }
                 }
             }
     }
@@ -319,9 +345,7 @@ fun AddRecipeScreen(
     val suggestedIdsLocal = suggestedTagsList.map { it.id }.toSet()
     val suggestedNamesLocal = suggestedTagsList.map { it.name }.toSet()
 
-    try {
-        Log.d("AddRecipeScreen", "suggested -> confirmed=${suggested?.confirmed?.map { it.name }} newly=${suggested?.newlyCreated?.map { it.name }}")
-    } catch (_: Exception) { }
+    Timber.d("suggested -> confirmed=%s newly=%s", suggested?.confirmed?.map { it.name }, suggested?.newlyCreated?.map { it.name })
 
     LaunchedEffect(suggested) {
         if (!userTouchedTags.value && suggestedTagsList.isNotEmpty()) {
@@ -342,14 +366,17 @@ fun AddRecipeScreen(
 
         // Photo
         if (photoBytes != null) {
-            val bmp = BitmapFactory.decodeByteArray(photoBytes, 0, photoBytes!!.size)
-            Image(bitmap = bmp.asImageBitmap(), contentDescription = "Vybraná fotografie", modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
-            TextButton(onClick = { photoBytes = null }, modifier = Modifier.padding(top = 8.dp)) { Text("Odebrat fotografii") }
+            val bmp = sampledBitmap(photoBytes!!)
+            if (bmp != null) {
+                val img = bmp.asImageBitmap()
+                Image(bitmap = img, contentDescription = stringResource(R.string.selected_photo), modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
+            }
+            TextButton(onClick = { photoBytes = null }, modifier = Modifier.padding(top = 8.dp)) { Text(stringResource(R.string.remove_photo)) }
         }
 
         // Title + voice
         Row(modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Název") }, modifier = Modifier.weight(1f))
+            OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text(stringResource(R.string.label_title)) }, modifier = Modifier.weight(1f))
             VoiceInputButton(onResult = { text ->
                 val lines = text.lines().map { it.trim() }.filter { it.isNotBlank() }
                 if (title.isBlank() && lines.isNotEmpty()) title = lines.first()
@@ -373,24 +400,24 @@ fun AddRecipeScreen(
             })
         }
 
-        OutlinedTextField(value = summary, onValueChange = { summary = it }, label = { Text("Popis") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+        OutlinedTextField(value = summary, onValueChange = { summary = it }, label = { Text(stringResource(R.string.label_summary)) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
 
         // Servings
         Spacer(modifier = Modifier.size(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { if (servingsBase > 1) servingsBase-- }, modifier = Modifier.size(40.dp)) {
-                Icon(imageVector = Icons.Filled.Remove, contentDescription = "Snížit základní porce")
-            }
-            Text("  Základní porce: $servingsBase  ", modifier = Modifier.padding(horizontal = 8.dp))
-            IconButton(onClick = { servingsBase++ }, modifier = Modifier.size(40.dp)) {
-                Icon(imageVector = Icons.Filled.Add, contentDescription = "Zvýšit základní porce")
+                Icon(imageVector = Icons.Filled.Remove, contentDescription = stringResource(R.string.base_servings_decrease))
+             }
+             Text(stringResource(R.string.base_servings_label, servingsBase), modifier = Modifier.padding(horizontal = 8.dp))
+             IconButton(onClick = { servingsBase++ }, modifier = Modifier.size(40.dp)) {
+                 Icon(imageVector = Icons.Filled.Add, contentDescription = stringResource(R.string.base_servings_increase))
             }
         }
 
         // ── Ingredient sections ──────────────────────────────────────────────
 
         Spacer(modifier = Modifier.size(8.dp))
-        Text("Ingredience", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.section_ingredients), style = MaterialTheme.typography.titleMedium)
 
         ingredientGroups.forEachIndexed { groupIndex, group ->
             // Named sub-section header (only for groups added beyond the default)
@@ -403,12 +430,12 @@ fun AddRecipeScreen(
                     OutlinedTextField(
                         value = group.name.value,
                         onValueChange = { group.name.value = it },
-                        label = { Text("Název sekce (např. Těsto, Poleva)") },
+                        label = { Text(stringResource(R.string.section_name_hint)) },
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(onClick = { ingredientGroups.removeAt(groupIndex) }) {
-                        Icon(imageVector = Icons.Filled.Delete, contentDescription = "Odebrat sekci")
+                        Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(R.string.remove_section))
                     }
                 }
             }
@@ -422,7 +449,7 @@ fun AddRecipeScreen(
                 ) {
                     OutlinedTextField(value = ing.amount.value, onValueChange = { ing.amount.value = it }, label = { Text("0") }, singleLine = true, modifier = Modifier.width(80.dp))
                     OutlinedTextField(value = ing.unit.value, onValueChange = { ing.unit.value = it }, label = { Text("g") }, singleLine = true, modifier = Modifier.width(72.dp))
-                    OutlinedTextField(value = ing.name.value, onValueChange = { ing.name.value = it }, label = { Text("jméno") }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = ing.name.value, onValueChange = { ing.name.value = it }, label = { Text(stringResource(R.string.ingredient_name_hint)) }, singleLine = true, modifier = Modifier.weight(1f))
                     IconButton(
                         onClick = {
                             if (group.ingredients.size > 1) group.ingredients.removeAt(ingIndex)
@@ -430,27 +457,27 @@ fun AddRecipeScreen(
                         },
                         modifier = Modifier.size(40.dp)
                     ) {
-                        Icon(imageVector = Icons.Filled.Delete, contentDescription = "Odebrat ingredienci")
+                        Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(R.string.remove_ingredient))
                     }
                 }
             }
 
             TextButton(onClick = { group.ingredients.add(IngredientInputState()) }, modifier = Modifier.padding(top = 4.dp)) {
-                Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Text(" Přidat ingredienci")
+                Icon(imageVector = Icons.Filled.Add, contentDescription = stringResource(R.string.add), modifier = Modifier.size(16.dp))
+                 Text(stringResource(R.string.add_ingredient))
             }
         }
 
         // Add section button
         Button(onClick = { ingredientGroups.add(IngredientGroupState("").also { it.ingredients.add(IngredientInputState()) }) }, modifier = Modifier.padding(top = 8.dp)) {
-            Icon(imageVector = Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text(" Přidat sekci")
+            Icon(imageVector = Icons.Filled.Add, contentDescription = stringResource(R.string.add), modifier = Modifier.size(18.dp))
+             Text(stringResource(R.string.add_section))
         }
 
         // ── Tags ─────────────────────────────────────────────────────────────
 
         Spacer(modifier = Modifier.size(12.dp))
-        Text("Štítky", fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.section_tags), fontWeight = FontWeight.Bold)
 
         val grouped = availableTags.groupBy { it.group }
         val availableNamesLower = availableTags.map { it.name.lowercase() }.toSet()
@@ -476,7 +503,7 @@ fun AddRecipeScreen(
         }
 
         if (extraSuggested.isNotEmpty()) {
-            Text("Navrhované", modifier = Modifier.padding(top = 8.dp))
+            Text(stringResource(R.string.section_suggested), modifier = Modifier.padding(top = 8.dp))
             FlowRow(modifier = Modifier.fillMaxWidth()) {
                 for (st in extraSuggested) {
                     val checked = if (userTouchedTags.value) selectedTagIds.contains(st.id) else true
@@ -492,7 +519,7 @@ fun AddRecipeScreen(
         // ── Steps ────────────────────────────────────────────────────────────
 
         Spacer(modifier = Modifier.size(12.dp))
-        Text("Postup")
+        Text(stringResource(R.string.section_steps))
         Column(modifier = Modifier.fillMaxWidth()) {
             steps.forEachIndexed { index, step ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
@@ -504,7 +531,7 @@ fun AddRecipeScreen(
                 }
             }
         }
-        Button(onClick = { steps.add("") }, modifier = Modifier.padding(top = 8.dp)) { Text("Přidat krok") }
+        Button(onClick = { steps.add("") }, modifier = Modifier.padding(top = 8.dp)) { Text(stringResource(R.string.add_step)) }
 
         // ── Save / Cancel ────────────────────────────────────────────────────
 
@@ -537,13 +564,14 @@ fun AddRecipeScreen(
                             ingredientGroups = groupsDomain,
                             steps = stepsDomain,
                             photo = photoBytes,
+                            photoPath = photoPath,
                             servingsBase = servingsBase
                         ),
                         finalTagIds
                     )
                 }
-            }) { Text("Uložit") }
-            TextButton(onClick = onCancel) { Text("Zrušit") }
+            }) { Text(stringResource(R.string.save)) }
+            TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
         }
     }
 }

@@ -4,12 +4,15 @@ import com.tkolymp.napect.data.local.entity.IngredientEntity
 import com.tkolymp.napect.data.local.entity.IngredientGroupEntity
 import com.tkolymp.napect.data.local.entity.IngredientGroupWithIngredients
 import com.tkolymp.napect.data.local.entity.RecipeEntity
+import com.tkolymp.napect.data.local.entity.RecipeListItemEntity
+import com.tkolymp.napect.data.local.entity.RecipeListItemWithTags
 import com.tkolymp.napect.data.local.entity.RecipeWithDetails
 import com.tkolymp.napect.data.local.entity.StepEntity
 import com.tkolymp.napect.domain.model.Category
 import com.tkolymp.napect.domain.model.Ingredient
 import com.tkolymp.napect.domain.model.IngredientGroup
 import com.tkolymp.napect.domain.model.Recipe
+import com.tkolymp.napect.domain.model.RecipeListItem
 import com.tkolymp.napect.domain.model.Step
 import com.tkolymp.napect.data.local.entity.TagEntity
 import com.tkolymp.napect.domain.model.Tag
@@ -25,6 +28,7 @@ fun RecipeWithDetails.toDomain(): Recipe = Recipe(
     isFavorite = recipe.isFavorite,
     category = recipe.category?.let { try { Category.valueOf(it) } catch (e: Exception) { Category.UNKNOWN } } ?: Category.UNKNOWN,
     photo = recipe.photo,
+    photoPath = recipe.photoPath,
     servingsBase = recipe.servingsBase,
     ingredientGroups = ingredientGroups
         .sortedBy { it.group.sortOrder }
@@ -33,6 +37,27 @@ fun RecipeWithDetails.toDomain(): Recipe = Recipe(
     tags = tags.map { it.toDomain() },
     createdAt = Instant.ofEpochMilli(recipe.createdAt),
     updatedAt = Instant.ofEpochMilli(recipe.updatedAt)
+)
+
+fun RecipeListItemWithTags.toDomainListItem(): RecipeListItem = RecipeListItem(
+    id = recipe.id,
+    title = recipe.title,
+    summary = recipe.summary,
+    photoPath = recipe.photoPath,
+    isFavorite = recipe.isFavorite,
+    category = recipe.category?.let { try { Category.valueOf(it) } catch (e: Exception) { Category.UNKNOWN } } ?: Category.UNKNOWN,
+    tags = tags.map { it.toDomain() },
+    createdAt = Instant.ofEpochMilli(recipe.createdAt)
+)
+
+fun RecipeListItem.toEntity(): RecipeListItemEntity = RecipeListItemEntity(
+    id = id,
+    title = title,
+    summary = summary,
+    photoPath = photoPath,
+    isFavorite = isFavorite,
+    category = category.name,
+    createdAt = createdAt.toEpochMilli()
 )
 
 fun Recipe.toEntity(): RecipeEntity = RecipeEntity(
@@ -44,6 +69,7 @@ fun Recipe.toEntity(): RecipeEntity = RecipeEntity(
     isFavorite = isFavorite,
     category = category.name,
     photo = photo,
+    photoPath = photoPath,
     servingsBase = servingsBase,
     createdAt = createdAt.toEpochMilli(),
     updatedAt = updatedAt.toEpochMilli(),

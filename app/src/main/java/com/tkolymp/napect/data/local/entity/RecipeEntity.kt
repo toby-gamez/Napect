@@ -14,6 +14,7 @@ data class RecipeEntity(
     @ColumnInfo(name = "is_favorite") val isFavorite: Boolean = false,
     val category: String? = null,
     @ColumnInfo(typeAffinity = ColumnInfo.BLOB) val photo: ByteArray? = null,
+    @ColumnInfo(name = "photo_path") val photoPath: String? = null,
     @ColumnInfo(name = "servings_base") val servingsBase: Int = 1,
     @ColumnInfo(name = "created_at") val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "updated_at") val updatedAt: Long = System.currentTimeMillis(),

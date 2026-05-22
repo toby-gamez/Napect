@@ -1040,40 +1040,42 @@ Not needed for the current fully-offline app, but should be noted if any remote 
 ## Workplan
 
 Phase 1: Quick Wins (15min–2h each)
-- [ ] 1.1 Remove dead dependencies: Firebase BOM, firebase-ai, alpha material3 override
-- [ ] 1.2 Enable R8 minification for release builds (isMinifyEnabled = true)
-- [ ] 1.3 Remove RECORD_AUDIO permission from manifest
-- [ ] 1.4 Add OkHttp timeouts + User-Agent header
-- [ ] 1.5 Remove AppContextHolder — inject @ApplicationContext Context via Hilt into UrlImportViewModel
-- [ ] 1.6 Restrict file_paths.xml to specific camera_captures/ subdirectory
-- [ ] 1.7 Fix KSP version to match Kotlin (2.3.21-1.0.20)
-- [ ] 1.8 Add minimum query length check (2 chars) to search
-- [ ] 1.9 Delete dead code: RecipeViewModelFactory.kt, UrlImportViewModelFactory.kt, RecipeClassifier.kt, unused getRecipesByTagId DAO query
-- [ ] 1.10 Clean unused version catalog entries (kotlin-android, kapt, hilt-compiler)
+- [x] 1.1 Remove dead dependencies: Firebase BOM, firebase-ai, alpha material3 override
+- [x] 1.2 Enable R8 minification for release builds (isMinifyEnabled = true)
+- [x] 1.3 Remove RECORD_AUDIO permission from manifest
+- [x] 1.4 Add OkHttp timeouts + User-Agent header
+- [x] 1.5 Remove AppContextHolder — inject @ApplicationContext Context via Hilt into UrlImportViewModel
+- [x] 1.6 Restrict file_paths.xml to specific camera_captures/ subdirectory
+- [x] 1.7 Fix KSP version to match Kotlin (2.3.21-1.0.20)
+- [x] 1.8 Add minimum query length check (2 chars) to search
+- [x] 1.9 Delete dead code: RecipeViewModelFactory.kt, UrlImportViewModelFactory.kt, RecipeClassifier.kt, unused getRecipesByTagId DAO query
+- [x] 1.10 Clean unused version catalog entries (kotlin-android, kapt, hilt-compiler)
 Phase 2: Medium Effort (2–3d each)
-- [ ] 2.1 Extract photo storage from Room BLOBs to internal storage files
-- [ ] 2.2 Add bitmap sampling via BitmapFactory.Options.inSampleSize everywhere
-- [ ] 2.3 Configure proper backup rules for napect.db + DataStore
-- [ ] 2.4 Write database migration tests (Room MigrationTestHelper)
-- [ ] 2.5 Add Timber logging + replace all silent catch (_: Exception) with proper logging
-- [ ] 2.6 Replace all Toast usages with Snackbar
-- [ ] 2.7 Add empty/loading/error states to recipe list and all screens
-- [ ] 2.8 Add @Index on recipe_tags junction table columns
-- [ ] 2.9 Replace java.util.Date with java.time.Instant
-- [ ] 2.10 Add accessibility contentDescription on all IconButton and icon elements
-- [ ] 2.11 Replace emoji mic Text("🎤") with Material Icon(Icons.Filled.Mic)
-- [ ] 2.12 Fix DisposableEffect(Unit) → DisposableEffect(activity) in MakeScreen
+- [x] 2.1 Extract photo storage from Room BLOBs to internal storage files
+- [x] 2.2 Add bitmap sampling via BitmapFactory.Options.inSampleSize everywhere
+- [x] 2.3 Configure proper backup rules for napect.db + DataStore
+- [x] 2.4 Write database migration tests (Room MigrationTestHelper)
+- [x] 2.5 Add Timber logging + replace all silent catch (_: Exception) with proper logging
+- [x] 2.6 Replace all Toast usages with Snackbar
+- [x] 2.7 Add empty/loading/error states to recipe list and all screens
+- [x] 2.8 Add @Index on recipe_tags junction table columns
+- [x] 2.9 Replace java.util.Date with java.time.Instant
+- [x] 2.10 Add accessibility contentDescription on all IconButton and icon elements
+- [x] 2.11 Replace emoji mic Text("🎤") with Material Icon(Icons.Filled.Mic)
+- [x] 2.12 Fix DisposableEffect(Unit) → DisposableEffect(activity) in MakeScreen
 Phase 3: High-Impact Refactors (1–4w each)
-- [ ] 3.1 Create lightweight recipe projection entity (no BLOB) for list queries
+- [x] 3.1 Create lightweight recipe projection entity (no BLOB) for list queries
 - [ ] 3.2 Introduce use case layer between ViewModel and Repository
-- [ ] 3.3 Migrate ViewModel wiring to hiltViewModel() in composables
+- [x] 3.3 Migrate ViewModel wiring to hiltViewModel() in composables
 - [ ] 3.4 Write comprehensive unit tests: DAOs, Repository, TagSuggester, IngredientParser, ViewModel
-- [ ] 3.5 Implement Room FTS4 for performant full-text search
-- [ ] 3.6 Push tag filtering to Room queries instead of in-memory
-- [ ] 3.7 Add Paging 3 to recipe list
-- [ ] 3.8 Replace all swallowed exceptions with proper error handling and user-facing errors
+- [x] 3.5 Implement Room FTS4 for performant full-text search
+- [x] 3.6 Push tag filtering to Room queries instead of in-memory
+- [x] 3.7 Add Paging 3 to recipe list
+- [x] 3.8 Replace all swallowed exceptions with proper error handling and user-facing errors
 - [ ] 3.9 Add Compose UI tests for critical screens
-- [ ] 3.10 Extract all hardcoded Czech strings to strings.xml
+- [x] 3.10 Extract all hardcoded Czech strings to strings.xml
+- [x] 3.11 Fix KSP version to match Kotlin (2.3.21-1.0.20 in libs.versions.toml) — KSP 2.3.0+ is standalone, already correct
+- [x] 3.12 Fix SettingsRepository inline creation in SettingsScreen — wrap in remember()
 Phase 4: Long-Term (not yet started)
 - [ ] 4.1 Modularize into multi-module architecture
 - [ ] 4.2 Implement proper UserPreferences DataStore singleton

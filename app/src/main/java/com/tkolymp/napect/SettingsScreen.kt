@@ -29,7 +29,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.tkolymp.napect.R
 import androidx.compose.ui.Alignment
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
@@ -48,7 +50,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val repo = SettingsRepository(context)
+    val repo = remember { SettingsRepository(context) }
     val prefs by repo.prefsFlow.collectAsState(initial = com.tkolymp.napect.data.local.UserPreferences())
     val scope = rememberCoroutineScope()
 
@@ -61,7 +63,7 @@ fun SettingsScreen(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
-        Text("Motiv")
+        Text(stringResource(R.string.section_theme))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             ThemeMode.values().forEach { mode ->
                 val selected = prefs.themeMode == mode
@@ -71,14 +73,14 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.size(12.dp))
-        Text("Výchozí porce: ${prefs.defaultServings}")
+        Text(stringResource(R.string.default_servings_label, prefs.defaultServings))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { scope.launch { repo.setDefaultServings((prefs.defaultServings - 1).coerceAtLeast(1)) } }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Remove, contentDescription = "Snížit výchozí porce") }
-            IconButton(onClick = { scope.launch { repo.setDefaultServings(prefs.defaultServings + 1) } }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Add, contentDescription = "Zvýšit výchozí porce") }
+            IconButton(onClick = { scope.launch { repo.setDefaultServings((prefs.defaultServings - 1).coerceAtLeast(1)) } }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Remove, contentDescription = stringResource(R.string.default_servings_decrease)) }
+            IconButton(onClick = { scope.launch { repo.setDefaultServings(prefs.defaultServings + 1) } }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Add, contentDescription = stringResource(R.string.default_servings_increase)) }
         }
 
         Spacer(modifier = Modifier.size(16.dp))
-        Text("Štítky", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+        Text(stringResource(R.string.section_tags_settings), fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
         // group tags by group
         val grouped = allTags.groupBy { it.group }
         grouped.forEach { (group, tags) ->
@@ -94,7 +96,7 @@ fun SettingsScreen(
                             androidx.compose.material3.AssistChip(onClick = {}, label = { Text(t.name) })
                         }
                         Spacer(modifier = Modifier.size(8.dp))
-                        IconButton(onClick = { pendingDeleteId = t.id }) { Icon(imageVector = Icons.Filled.Delete, contentDescription = "Smazat štítek") }
+                        IconButton(onClick = { pendingDeleteId = t.id }) { Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(R.string.delete_tag)) }
                     }
                 }
 
@@ -107,11 +109,11 @@ fun SettingsScreen(
                             androidx.compose.material3.TextButton(onClick = {
                                 pendingDeleteId = null
                                 onDeleteTag(deleteId)
-                            }) { Text("Smazat") }
+                            }) { Text(stringResource(R.string.delete)) }
                         },
-                        dismissButton = { androidx.compose.material3.TextButton(onClick = { pendingDeleteId = null }) { Text("Zrušit") } },
-                        title = { Text("Smazat štítek?") },
-                        text = { Text("Tím odeberete štítek ze všech receptů. Jste si jistí?") }
+                        dismissButton = { androidx.compose.material3.TextButton(onClick = { pendingDeleteId = null }) { Text(stringResource(R.string.cancel)) } },
+                        title = { Text(stringResource(R.string.delete_tag_title)) },
+                        text = { Text(stringResource(R.string.delete_tag_message)) }
                     )
                 }
             }
@@ -123,7 +125,7 @@ fun SettingsScreen(
         var expanded by remember { mutableStateOf(false) }
         var selectedGroup by remember { mutableStateOf(com.tkolymp.napect.domain.model.TagGroup.OTHER) }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(value = newTagName, onValueChange = { newTagName = it }, label = { Text("Štítek") }, modifier = Modifier.weight(1f))
+            OutlinedTextField(value = newTagName, onValueChange = { newTagName = it }, label = { Text(stringResource(R.string.tag_name_hint)) }, modifier = Modifier.weight(1f))
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = { expanded = true }) { Text(selectedGroup.displayName) }
             androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -137,12 +139,12 @@ fun SettingsScreen(
                     onCreateTag(newTagName.trim(), selectedGroup)
                     newTagName = ""
                 }
-            }) { Text("Vytvořit štítek") }
+            }) { Text(stringResource(R.string.create_tag)) }
         }
 
         Spacer(modifier = Modifier.size(12.dp))
         Button(onClick = { onRestoreDefaults() }, modifier = Modifier.padding(top = 8.dp)) {
-            Text("Obnovit výchozí štítky")
+            Text(stringResource(R.string.restore_default_tags))
         }
     }
 }

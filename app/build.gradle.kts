@@ -40,7 +40,12 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 // Configure Kotlin compiler options using the compilerOptions DSL (recommended for Kotlin Gradle Plugin 2.x)
@@ -82,14 +87,18 @@ dependencies {
     ksp(libs.hiltKsp)
     // Network (URL import) via version catalog
     implementation(libs.okhttp)
+    implementation(libs.timber)
     // Image decoding (for reading picked images) - removed unused Glide dependency
     // DataStore Preferences for app settings via version catalog
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.paging.runtime)
+    implementation(libs.androidx.paging.compose)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.room.testing)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

@@ -4,6 +4,7 @@ import androidx.room.*
 import com.tkolymp.napect.data.local.entity.IngredientEntity
 import com.tkolymp.napect.data.local.entity.IngredientGroupEntity
 import com.tkolymp.napect.data.local.entity.RecipeEntity
+import com.tkolymp.napect.data.local.entity.RecipeListItemWithTags
 import com.tkolymp.napect.data.local.entity.RecipeWithDetails
 import com.tkolymp.napect.data.local.entity.StepEntity
 import kotlinx.coroutines.flow.Flow
@@ -23,6 +24,52 @@ interface RecipeDao {
     @Transaction
     @Query("SELECT * FROM recipes WHERE id = :id")
     fun getRecipeWithDetails(id: Long): Flow<RecipeWithDetails?>
+
+    // ─── Lightweight list queries (no BLOB, no ingredient/step JOINs) ───────
+
+    @Transaction
+    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes ORDER BY created_at DESC")
+    fun getAllRecipeListItems(): Flow<List<RecipeListItemWithTags>>
+
+    @Transaction
+    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes WHERE id IN (SELECT recipe_id FROM recipe_tags WHERE tag_id = :tagId) ORDER BY created_at DESC")
+    fun getRecipeListItemsByTag(tagId: Long): Flow<List<RecipeListItemWithTags>>
+
+    @Transaction
+    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes WHERE id IN (SELECT docid FROM recipe_fts WHERE recipe_fts MATCH :query) ORDER BY created_at DESC")
+    fun searchRecipeListItems(query: String): Flow<List<RecipeListItemWithTags>>
+
+    @Transaction
+    @Query("""
+        SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes
+        WHERE id IN (SELECT recipe_id FROM recipe_tags WHERE tag_id = :tagId)
+        AND id IN (SELECT docid FROM recipe_fts WHERE recipe_fts MATCH :query)
+        ORDER BY created_at DESC
+    """)
+    fun searchRecipeListItemsByTag(tagId: Long, query: String): Flow<List<RecipeListItemWithTags>>
+
+    // ─── Paging queries ────────────────────────────────────────────────────
+
+    @Transaction
+    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
+    fun getAllRecipeListItemsPaged(limit: Int, offset: Int): List<RecipeListItemWithTags>
+
+    @Transaction
+    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes WHERE id IN (SELECT recipe_id FROM recipe_tags WHERE tag_id = :tagId) ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
+    fun getRecipeListItemsByTagPaged(tagId: Long, limit: Int, offset: Int): List<RecipeListItemWithTags>
+
+    @Transaction
+    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes WHERE id IN (SELECT docid FROM recipe_fts WHERE recipe_fts MATCH :query) ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
+    fun searchRecipeListItemsPaged(query: String, limit: Int, offset: Int): List<RecipeListItemWithTags>
+
+    @Transaction
+    @Query("""
+        SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes
+        WHERE id IN (SELECT recipe_id FROM recipe_tags WHERE tag_id = :tagId)
+        AND id IN (SELECT docid FROM recipe_fts WHERE recipe_fts MATCH :query)
+        ORDER BY created_at DESC LIMIT :limit OFFSET :offset
+    """)
+    fun searchRecipeListItemsByTagPaged(tagId: Long, query: String, limit: Int, offset: Int): List<RecipeListItemWithTags>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecipe(recipe: RecipeEntity): Long
@@ -50,6 +97,9 @@ interface RecipeDao {
 
     @Query("UPDATE recipes SET is_favorite = :fav WHERE id = :id")
     suspend fun updateFavorite(id: Long, fav: Boolean)
+
+    @Query("UPDATE recipes SET photo_path = :path, photo = NULL WHERE id = :id")
+    suspend fun updatePhotoPath(id: Long, path: String?)
 
     /**
      * Insert a complete recipe (entity + ingredient groups + steps) in a single transaction.
@@ -99,7 +149,7 @@ interface RecipeDao {
     }
 
     @Transaction
-    @Query("SELECT * FROM recipes WHERE title LIKE '%' || :query || '%' OR summary LIKE '%' || :query || '%' ORDER BY created_at DESC")
+    @Query("SELECT * FROM recipes WHERE id IN (SELECT docid FROM recipe_fts WHERE recipe_fts MATCH :query) ORDER BY created_at DESC")
     fun search(query: String): Flow<List<RecipeWithDetails>>
 
     @Query("DELETE FROM recipe_tags WHERE recipe_id = :recipeId")

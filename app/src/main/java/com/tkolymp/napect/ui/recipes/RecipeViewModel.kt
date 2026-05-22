@@ -2,9 +2,13 @@ package com.tkolymp.napect.ui.recipes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import kotlinx.coroutines.flow.Flow
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import com.tkolymp.napect.domain.model.Recipe
+import com.tkolymp.napect.domain.model.RecipeListItem
 import com.tkolymp.napect.domain.repository.RecipeRepository
 import com.tkolymp.napect.domain.model.Category
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,28 +19,58 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.asStateFlow
 import com.tkolymp.napect.domain.model.Tag
 import com.tkolymp.napect.data.ai.AiClient
+import timber.log.Timber
 import com.tkolymp.napect.domain.model.TagGroup
 
 @HiltViewModel
 class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, private val ai: AiClient) : ViewModel() {
-    val recipes: StateFlow<List<Recipe>> = repo.getAllRecipes()
+    // Lightweight list items (no BLOB, no ingredient/step JOINs)
+    val recipeListItems: StateFlow<List<RecipeListItem>> = repo.getAllRecipeListItems()
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _searchQuery = MutableStateFlow("")
-    val searchResults: StateFlow<List<Recipe>> = _searchQuery
+    val searchListItems: StateFlow<List<RecipeListItem>> = _searchQuery
         .filter { it.length >= 2 || it.isBlank() }
         .debounce(300)
-        .flatMapLatest { q -> if (q.isBlank()) repo.getAllRecipes() else repo.search(q) }
+        .flatMapLatest { q -> if (q.isBlank()) repo.getAllRecipeListItems() else repo.searchRecipeListItems(q) }
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun setSearchQuery(q: String) { _searchQuery.value = q }
     val searchQuery = _searchQuery.asStateFlow()
+
+    // Combined tag + search filtering (pushed to Room queries)
+    private val _selectedTagId = MutableStateFlow<Long?>(null)
+    val filteredRecipeListItems: StateFlow<List<RecipeListItem>> = combine(_searchQuery, _selectedTagId) { q, tagId ->
+        q to tagId
+    }.flatMapLatest { (q, tagId) ->
+        val query = if (q.length < 2) "" else q
+        val listFlow = when {
+            tagId != null && query.isNotBlank() -> repo.searchRecipeListItemsByTag(tagId, query)
+            tagId != null -> repo.getRecipeListItemsByTag(tagId)
+            query.isNotBlank() -> repo.searchRecipeListItems(query)
+            else -> repo.getAllRecipeListItems()
+        }
+        listFlow
+    }.catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // ─── Paged recipe list (HOME tab) ────────────────────────────────────────
+    val pagedRecipes: Flow<PagingData<RecipeListItem>> = combine(_searchQuery, _selectedTagId) { q, tagId ->
+        q to tagId
+    }.flatMapLatest { (q, tagId) ->
+        val query = if (q.length < 2) "" else q
+        repo.getPagedRecipeListItems(tagId, query)
+    }.cachedIn(viewModelScope)
+
+    val selectedTagId: StateFlow<Long?> = _selectedTagId.asStateFlow()
+    fun setSelectedTagId(tagId: Long?) { _selectedTagId.value = tagId }
 
     private fun classifyRecipe(title: String?, ingredients: List<String>, steps: List<String>): Category {
         val text = (listOfNotNull(title) + ingredients + steps).joinToString(" ").lowercase()
@@ -89,9 +123,7 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
             try {
                 val suggestion = repo.suggestTagsForRecipe(recipe)
                 _suggestedTags.value = suggestion
-                try {
-                    android.util.Log.d("RecipeVM", "suggestTagsForRecipe -> confirmed=${suggestion.confirmed.map { it.name }} newly=${suggestion.newlyCreated.map { it.name }}")
-                } catch (_: Exception) { }
+                Timber.d("suggestTagsForRecipe -> confirmed=%s newly=%s", suggestion.confirmed.map { it.name }, suggestion.newlyCreated.map { it.name })
             } catch (e: Exception) {
                 _error.value = e.message ?: "Tag suggestion failed"
             }
@@ -112,7 +144,8 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
                     try {
                         val suggestion = repo.suggestTagsForRecipe(recipe)
                         (suggestion.confirmed + suggestion.newlyCreated).map { it.id }
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        Timber.w(e, "Tag suggestion fallback in createRecipeWithTags")
                         emptyList()
                     }
                 }
@@ -139,7 +172,8 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
                     try {
                         val suggestion = repo.suggestTagsForRecipe(recipe)
                         (suggestion.confirmed + suggestion.newlyCreated).map { it.id }
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        Timber.w(e, "Tag suggestion fallback in updateRecipeWithTags")
                         emptyList()
                     }
                 }
@@ -192,6 +226,17 @@ class RecipeViewModel @Inject constructor(private val repo: RecipeRepository, pr
                 onComplete()
             } catch (e: Exception) {
                 _error.value = e.message ?: "Unknown error"
+            }
+        }
+    }
+
+    fun updatePhotoPath(id: Long, path: String?) {
+        viewModelScope.launch {
+            try {
+                repo.updatePhotoPath(id, path)
+                _error.value = null
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Failed to update photo path"
             }
         }
     }

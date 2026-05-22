@@ -17,6 +17,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.compose.ui.res.stringResource
+import com.tkolymp.napect.R
 
 /**
  * Minimal voice input button that launches the platform speech recognizer via intent.
@@ -41,6 +43,6 @@ fun VoiceInputButton(onResult: (String) -> Unit) {
         }
         launcher.launch(intent)
     }) {
-        Icon(Icons.Filled.Mic, contentDescription = "Hlasový vstup")
+        Icon(Icons.Filled.Mic, contentDescription = stringResource(R.string.voice_input))
     }
 }

@@ -1,5 +1,6 @@
 package com.tkolymp.napect
 
+import timber.log.Timber
 // layout imports intentionally minimal
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -37,6 +38,7 @@ import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import androidx.compose.runtime.LaunchedEffect
 // (single getValue import above)
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -45,17 +47,20 @@ import androidx.compose.ui.platform.LocalContext
 import android.app.Activity
 import androidx.compose.ui.Modifier
 import com.tkolymp.napect.ui.recipes.AddRecipeScreen
-import com.tkolymp.napect.ui.recipes.RecipeListScreen
 import com.tkolymp.napect.ui.recipes.RecipeViewModel
+import com.tkolymp.napect.ui.recipes.PagedRecipeListScreen
+import com.tkolymp.napect.domain.model.RecipeListItem
+import com.tkolymp.napect.ui.recipes.RecipeListScreen
 import com.tkolymp.napect.ui.recipes.RecipeDetailScreen
 import com.tkolymp.napect.ui.recipes.MakeScreen
+import com.tkolymp.napect.ui.recipes.UrlImportViewModel
+import com.tkolymp.napect.data.local.PhotoManager
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SearchBar
 import androidx.compose.material3.ListItem
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.rememberCoroutineScope
-import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material3.Card
@@ -73,6 +78,7 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.remember
+import androidx.hilt.navigation.compose.hiltViewModel
 // URL import screen removed: import handled inline in AddRecipeScreen
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -88,7 +94,10 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
@@ -103,25 +112,28 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
+
+val LocalSnackbarHostState = compositionLocalOf { SnackbarHostState() }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun NapectApp(
-    vm: RecipeViewModel,
-    importVm: com.tkolymp.napect.ui.recipes.UrlImportViewModel? = null,
     initialSharedUrl: String? = null,
     initialSharedImageUri: android.net.Uri? = null
 ) {
+    val vm: RecipeViewModel = hiltViewModel()
+    val importVm: com.tkolymp.napect.ui.recipes.UrlImportViewModel = hiltViewModel()
     // selected bottom nav destination (keeps the bottom bar highlighted)
     var selectedDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var showAdd by rememberSaveable { mutableStateOf(false) }
-    // tag selection (replaces the previous Category chips). Kept in-memory only.
-    var selectedTagId by remember { mutableStateOf<Long?>(null) }
     // FAB menu state
     var fabMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var showUrlDialog by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     var fabUrlText by remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // BackHandler integrates with the native OnBackPressedDispatcher so the system back
     // gesture (edge-swipe) and hardware back button are handled here.
@@ -166,52 +178,44 @@ fun NapectApp(
             }
         }
     }) {
-        Scaffold(modifier = Modifier.fillMaxSize(), topBar = {
+        CompositionLocalProvider(LocalSnackbarHostState provides snackbarHostState) {
+        Scaffold(modifier = Modifier.fillMaxSize(), snackbarHost = { SnackbarHost(snackbarHostState) }, topBar = {
             CenterAlignedTopAppBar(
                 title = {
                     val titleText = when {
-                        currentRoute == "add" -> "Přidat recept"
-                        currentRoute?.startsWith("recipe/") == true || currentRoute == "recipe/{id}" -> "Recept"
-                        currentRoute != null && AppDestinations.values().any { it.name == currentRoute } -> AppDestinations.valueOf(currentRoute).label
-                        else -> selectedDestination.label
+                        currentRoute == "add" -> stringResource(R.string.title_add_recipe)
+                        currentRoute?.startsWith("recipe/") == true || currentRoute == "recipe/{id}" -> stringResource(R.string.title_recipe)
+                        currentRoute != null && AppDestinations.values().any { it.name == currentRoute } -> stringResource(AppDestinations.valueOf(currentRoute).labelRes)
+                        else -> stringResource(selectedDestination.labelRes)
                     }
                     // animate title changes
                     AnimatedContent(targetState = titleText, transitionSpec = {
                         fadeIn(tween(150)).togetherWith(fadeOut(tween(150)))
                     }) { Text(it) }
                 },
-                navigationIcon = {
-                    // never show back arrow on top-level (bottom-nav) destinations
-                    val isTopLevel = currentRoute in topLevelRoutes
-                    if (!isTopLevel && navController.previousBackStackEntry != null) {
-                        IconButton(onClick = { navController.navigateUp() }) {
-                            Icon(Icons.Filled.ArrowBack, contentDescription = "Zpět")
-                        }
-                    }
-                }
-                , actions = {
+                actions = {
                     var menuExpanded by remember { mutableStateOf(false) }
 
                     if (currentRoute == "add") {
                         IconButton(onClick = { menuExpanded = true }) {
-                            Icon(Icons.Filled.Add, contentDescription = "Akce")
+                            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_menu))
                         }
 
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                             DropdownMenuItem(
-                                text = { Text("Vybrat fotografii") },
-                                leadingIcon = { Icon(imageVector = Icons.Filled.Image, contentDescription = null) },
+                                text = { Text(stringResource(R.string.pick_photo)) },
+                                leadingIcon = { Icon(imageVector = Icons.Filled.Image, contentDescription = stringResource(R.string.pick_photo)) },
                                 onClick = {
                                     menuExpanded = false
-                                    try { pickActionState.value?.invoke() } catch (_: Exception) { }
+                                    try { pickActionState.value?.invoke() } catch (e: Exception) { Timber.w(e) }
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Otevřít fotoaparát") },
-                                leadingIcon = { Icon(imageVector = Icons.Filled.CameraAlt, contentDescription = null) },
+                                text = { Text(stringResource(R.string.open_camera)) },
+                                leadingIcon = { Icon(imageVector = Icons.Filled.CameraAlt, contentDescription = stringResource(R.string.open_camera)) },
                                 onClick = {
                                     menuExpanded = false
-                                    try { cameraActionState.value?.invoke() } catch (_: Exception) { }
+                                    try { cameraActionState.value?.invoke() } catch (e: Exception) { Timber.w(e) }
                                 }
                             )
                         }
@@ -221,24 +225,26 @@ fun NapectApp(
                 }
             )
         }) { innerPadding ->
-            val items by vm.recipes.collectAsState()
-            val searchResults by vm.searchResults.collectAsState()
             val searchQuery by vm.searchQuery.collectAsState()
+            val filteredItems: List<RecipeListItem> by vm.filteredRecipeListItems.collectAsState()
+            val searchSuggestions by vm.searchListItems.collectAsState()
 
-            // If the app was opened via share and importVm + initialSharedUrl are provided, navigate to the import screen
+            // If the app was opened via share, fetch/import the shared content and navigate to add screen
             LaunchedEffect(initialSharedUrl, initialSharedImageUri) {
-                // If the app was opened via share, directly perform the import using the ViewModel
-                // and navigate to the Add screen where the imported data will be populated.
-                if (!initialSharedUrl.isNullOrBlank() && importVm != null) {
+                if (!initialSharedUrl.isNullOrBlank()) {
                     try {
                         importVm.fetchUrl(initialSharedUrl)
-                    } catch (_: Exception) { }
-                    navController.navigate("add")
-                } else if (initialSharedImageUri != null && importVm != null) {
+                    } catch (e: java.lang.Exception) {
+                        Timber.w(e, "Failed to fetch initial shared URL")
+                    }
+                    try { navController.navigate("add") } catch (e: Exception) { Timber.w(e, "add navigation failed") }
+                } else if (initialSharedImageUri != null) {
                     try {
                         importVm.importImage(initialSharedImageUri)
-                    } catch (_: Exception) { }
-                    navController.navigate("add")
+                    } catch (e: java.lang.Exception) {
+                        Timber.w(e, "Failed to import initial shared image")
+                    }
+                    try { navController.navigate("add") } catch (e: Exception) { Timber.w(e, "add navigation failed") }
                 }
             }
 
@@ -248,14 +254,22 @@ fun NapectApp(
                     enterTransition = { fadeIn(tween(150)) },
                     exitTransition = { fadeOut(tween(150)) }
                 ) {
-                    val baseList = items
-                    val searchFiltered = if (searchQuery.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
-                    // Apply tag filter if selectedTagId is set
-                    val tagFiltered = selectedTagId?.let { tid -> searchFiltered.filter { r -> r.tags.any { t -> t.id == tid } } } ?: searchFiltered
                     Column(modifier = Modifier.fillMaxSize()) {
-                        // show any ViewModel error messages
-                        val vmError by vm.error.collectAsState()
-                        if (!vmError.isNullOrBlank()) Text(text = "Error: $vmError")
+                        val vmErrorState by vm.error.collectAsState()
+                        val vmError = vmErrorState
+                        if (!vmError.isNullOrBlank()) {
+                            androidx.compose.material3.Card(
+                                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                                colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                            ) {
+                                Text(
+                                    text = vmError,
+                                    modifier = Modifier.padding(12.dp),
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
                         // Material3 SearchBar: follows the Material Search pattern with suggestions
                         val homeSearchActive = rememberSaveable { mutableStateOf(false) }
                         var homeLocalQuery by remember { mutableStateOf(searchQuery) }
@@ -266,57 +280,57 @@ fun NapectApp(
                             onSearch = { q -> vm.setSearchQuery(q); homeSearchActive.value = false },
                             active = homeSearchActive.value,
                             onActiveChange = { homeSearchActive.value = it },
-                            placeholder = { Text("Hledat") },
-                            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                            placeholder = { Text(stringResource(R.string.search_hint)) },
+                             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.search_hint)) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 8.dp),
                             trailingIcon = {
                                 if (searchQuery.isNotBlank()) {
-                                    IconButton(onClick = { vm.setSearchQuery("") }) { Icon(Icons.Filled.Close, contentDescription = "Vyčistit") }
-                                }
-                            }
-                        ) {
-                            // Show simple suggestions: when query is empty show recent (first few recipes),
-                            // otherwise show search results. Clicking a suggestion sets it as the query.
-                            val suggestions = if (searchQuery.isBlank()) baseList.take(6) else searchResults
-                            // Make suggestion box expand to fill available width
-                            val suggestionModifier = Modifier.fillMaxWidth()
-                            LazyColumn(modifier = Modifier.heightIn(max = 600.dp)) {
-                                items(suggestions) { r ->
-                                    Card(modifier = suggestionModifier
-                                        .clickable {
-                                            // navigate directly to the recipe detail
-                                            try { navController.navigate("recipe/${r.id}") } catch (_: Exception) {}
-                                            vm.setSearchQuery(r.title)
-                                            homeSearchActive.value = false
-                                        }
-                                        .padding(8.dp)) {
-                                        Column(modifier = Modifier.padding(12.dp)) {
-                                            r.photo?.let { bytes ->
-                                                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                                                androidx.compose.foundation.Image(bitmap = bmp.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxWidth().height(120.dp), contentScale = ContentScale.Crop)
-                                            }
-                                            Text(r.title, style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
-                                            r.summary?.let { Text(it, modifier = Modifier.padding(top = 4.dp)) }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                         // compute available tags (Category + Other) that are used by at least one recipe
+                                    IconButton(onClick = { vm.setSearchQuery("") }) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.search_clear)) }
+                                 }
+                             }
+                         ) {
+                             val suggestions = if (searchQuery.isBlank()) filteredItems.take(6) else searchSuggestions
+                             val suggestionModifier = Modifier.fillMaxWidth()
+                             LazyColumn(modifier = Modifier.heightIn(max = 600.dp)) {
+                                 items(suggestions) { r ->
+                                     Card(modifier = suggestionModifier
+                                         .clickable {
+                                             // navigate directly to the recipe detail
+                                             try { navController.navigate("recipe/${r.id}") } catch (e: Exception) { Timber.w(e, "Search suggestion navigation failed") }
+                                             vm.setSearchQuery(r.title)
+                                             homeSearchActive.value = false
+                                         }
+                                         .padding(8.dp)) {
+                                         Column(modifier = Modifier.padding(12.dp)) {
+                                             if (r.photoPath != null) {
+                                                 val bmp = PhotoManager.loadBitmap(r.photoPath!!)
+                                                 if (bmp != null) {
+                                                     val img = bmp.asImageBitmap()
+                                                     androidx.compose.foundation.Image(bitmap = img, contentDescription = "Fotografie receptu", modifier = Modifier.fillMaxWidth().height(120.dp), contentScale = ContentScale.Crop)
+                                                 }
+                                             }
+                                             Text(r.title, style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
+                                             r.summary?.let { Text(it, modifier = Modifier.padding(top = 4.dp)) }
+                                         }
+                                     }
+                                 }
+                             }
+                          }
+                          // compute available tags (Category + Other); for paged view show all without filtering by items
                         val allTags by vm.allTags.collectAsState()
-                        val usedTags = allTags.filter { tg -> (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) && baseList.any { r -> r.tags.any { t -> t.id == tg.id } } }
-                        RecipeListScreen(recipes = tagFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = selectedTagId, onTagSelected = { selectedTagId = it }, onDelete = { id -> vm.deleteRecipe(id) })
+                        val currentTagId by vm.selectedTagId.collectAsState()
+                        val usedTags = allTags.filter { tg -> tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER }
+                        PagedRecipeListScreen(pagedRecipes = vm.pagedRecipes, onItemClick = { id -> navController.navigate("recipe/$id") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = currentTagId, onTagSelected = { vm.setSelectedTagId(it) }, onDelete = { id -> vm.deleteRecipe(id) })
                     }
                 }
                 navComposable(AppDestinations.FAVORITES.name,
                     enterTransition = { fadeIn(tween(150)) },
                     exitTransition = { fadeOut(tween(150)) }
                 ) {
-                    val baseList = items.filter { it.isFavorite }
-                    val searchFiltered = if (searchQuery.isBlank()) baseList else searchResults.filter { r -> baseList.any { it.id == r.id } }
-                    val tagFiltered = selectedTagId?.let { tid -> searchFiltered.filter { r -> r.tags.any { t -> t.id == tid } } } ?: searchFiltered
+                    val favItems: List<RecipeListItem> = filteredItems.filter { it.isFavorite }
+                    val favSuggestions = searchSuggestions.filter { it.isFavorite }
                     Column(modifier = Modifier.fillMaxSize()) {
                         val favSearchActive = rememberSaveable { mutableStateOf(false) }
                         var favLocalQuery by remember { mutableStateOf(searchQuery) }
@@ -327,43 +341,47 @@ fun NapectApp(
                             onSearch = { q -> vm.setSearchQuery(q); favSearchActive.value = false },
                             active = favSearchActive.value,
                             onActiveChange = { favSearchActive.value = it },
-                            placeholder = { Text("Hledat") },
-                            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                            placeholder = { Text(stringResource(R.string.search_hint)) },
+                             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 8.dp),
                             trailingIcon = {
                                 if (searchQuery.isNotBlank()) {
-                                    IconButton(onClick = { vm.setSearchQuery("") }) { Icon(Icons.Filled.Close, contentDescription = "Vyčistit") }
-                                }
-                            }
-                        ) {
-                            val suggestions = if (searchQuery.isBlank()) baseList.take(6) else searchResults
-                            val suggestionModifier = Modifier.fillMaxWidth()
-                            LazyColumn(modifier = Modifier.heightIn(max = 600.dp)) {
-                                items(suggestions) { r ->
-                                    Card(modifier = suggestionModifier
-                                        .clickable {
-                                            try { navController.navigate("recipe/${r.id}") } catch (_: Exception) {}
-                                            vm.setSearchQuery(r.title)
-                                            favSearchActive.value = false
-                                        }
-                                        .padding(8.dp)) {
-                                        Column(modifier = Modifier.padding(12.dp)) {
-                                            r.photo?.let { bytes ->
-                                                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                                                androidx.compose.foundation.Image(bitmap = bmp.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxWidth().height(120.dp), contentScale = ContentScale.Crop)
-                                            }
-                                            Text(r.title, style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
-                                            r.summary?.let { Text(it, modifier = Modifier.padding(top = 4.dp)) }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        val allTags by vm.allTags.collectAsState()
-                        val usedTags = allTags.filter { tg -> (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) && baseList.any { r -> r.tags.any { t -> t.id == tg.id } } }
-                        RecipeListScreen(recipes = tagFiltered, onItemClick = { navController.navigate("recipe/${it.id}") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = selectedTagId, onTagSelected = { selectedTagId = it }, onDelete = { id -> vm.deleteRecipe(id) })
+                                    IconButton(onClick = { vm.setSearchQuery("") }) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.search_clear)) }
+                                 }
+                             }
+                         ) {
+                             val suggestions = if (searchQuery.isBlank()) favItems.take(6) else favSuggestions
+                             val suggestionModifier = Modifier.fillMaxWidth()
+                             LazyColumn(modifier = Modifier.heightIn(max = 600.dp)) {
+                                 items(suggestions) { r ->
+                                     Card(modifier = suggestionModifier
+                                         .clickable {
+                                             try { navController.navigate("recipe/${r.id}") } catch (e: Exception) { Timber.w(e, "Search suggestion navigation failed") }
+                                             vm.setSearchQuery(r.title)
+                                             favSearchActive.value = false
+                                         }
+                                         .padding(8.dp)) {
+                                         Column(modifier = Modifier.padding(12.dp)) {
+                                             if (r.photoPath != null) {
+                                                 val bmp = PhotoManager.loadBitmap(r.photoPath!!)
+                                                 if (bmp != null) {
+                                                     val img = bmp.asImageBitmap()
+                                                     androidx.compose.foundation.Image(bitmap = img, contentDescription = "Fotografie receptu", modifier = Modifier.fillMaxWidth().height(120.dp), contentScale = ContentScale.Crop)
+                                                 }
+                                             }
+                                             Text(r.title, style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
+                                             r.summary?.let { Text(it, modifier = Modifier.padding(top = 4.dp)) }
+                                         }
+                                     }
+                                 }
+                             }
+                         }
+                         val allTags by vm.allTags.collectAsState()
+                        val currentTagId by vm.selectedTagId.collectAsState()
+                        val usedTags = allTags.filter { tg -> (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) && favItems.any { r -> r.tags.any { t -> t.id == tg.id } } }
+                        RecipeListScreen(recipes = favItems, onItemClick = { id -> navController.navigate("recipe/$id") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = currentTagId, onTagSelected = { vm.setSelectedTagId(it) }, onDelete = { id -> vm.deleteRecipe(id) })
                     }
                 }
                 navComposable(AppDestinations.SETTINGS.name,
@@ -394,14 +412,19 @@ fun NapectApp(
                     val suggested by vm.suggestedTags.collectAsState()
                     val suggestedIds = suggested?.let { (it.confirmed + it.newlyCreated).map { t -> t.id }.toSet() } ?: emptySet()
                     val suggestedNames = suggested?.let { (it.confirmed + it.newlyCreated).map { t -> t.name }.toSet() } ?: emptySet()
-                    // Debug logging to ensure suggestions are visible at app composition time
                     LaunchedEffect(suggested) {
-                        try {
-                            android.util.Log.d("NapectApp", "VM suggested tags: confirmed=${suggested?.confirmed?.map { it.name }} newly=${suggested?.newlyCreated?.map { it.name }} ids=$suggestedIds")
-                        } catch (_: Exception) { }
+                        Timber.d("VM suggested tags: confirmed=%s newly=%s ids=%s", suggested?.confirmed?.map { it.name }, suggested?.newlyCreated?.map { it.name }, suggestedIds)
                     }
                         AddRecipeScreen(
-                            onSave = { r, tagIds -> vm.createRecipeWithTags(r, tagIds) { navController.popBackStack() } },
+                            onSave = { r, tagIds ->
+                                vm.createRecipeWithTags(r, tagIds) { id ->
+                                    r.photo?.let { bytes ->
+                                        PhotoManager.savePhoto(context, id, bytes)
+                                        vm.updatePhotoPath(id, PhotoManager.getPhotoPath(context, id))
+                                    }
+                                    navController.popBackStack()
+                                }
+                            },
                             onCancel = { navController.popBackStack() },
                             availableTags = allTags,
                             suggested = suggested,
@@ -433,7 +456,17 @@ fun NapectApp(
                         val suggestedIds = suggested?.let { (it.confirmed + it.newlyCreated).map { t -> t.id }.toSet() } ?: emptySet()
                         AddRecipeScreen(
                             initialRecipe = it,
-                            onSave = { updated, tagIds -> vm.updateRecipeWithTags(updated, tagIds) { navController.popBackStack() } },
+                            onSave = { updated, tagIds ->
+                                vm.updateRecipeWithTags(updated, tagIds) {
+                                    if (updated.id != 0L) {
+                                        updated.photo?.let { bytes ->
+                                            PhotoManager.savePhoto(context, updated.id, bytes)
+                                            vm.updatePhotoPath(updated.id, PhotoManager.getPhotoPath(context, updated.id))
+                                        }
+                                    }
+                                    navController.popBackStack()
+                                }
+                            },
                             onCancel = { navController.popBackStack() },
                             availableTags = allTags,
                             suggested = suggested,
@@ -490,13 +523,13 @@ fun NapectApp(
                         showUrlDialog = false
                         fabUrlText = ""
                     },
-                    title = { Text("Importovat z odkazu") },
-                    text = {
-                        val clipboardManager = LocalClipboardManager.current
-                        OutlinedTextField(
-                            value = fabUrlText,
-                            onValueChange = { fabUrlText = it },
-                            label = { Text("Odkaz na recept") },
+                    title = { Text(stringResource(R.string.import_url_title)) },
+                     text = {
+                         val clipboardManager = LocalClipboardManager.current
+                         OutlinedTextField(
+                             value = fabUrlText,
+                             onValueChange = { fabUrlText = it },
+                             label = { Text(stringResource(R.string.import_url_hint)) },
                             placeholder = { Text("https://...") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
@@ -509,7 +542,7 @@ fun NapectApp(
                                     val clip = clipboardManager.getText()?.text
                                     if (!clip.isNullOrBlank()) fabUrlText = clip
                                 }) {
-                                    Icon(Icons.Filled.ContentPaste, contentDescription = "Vložit")
+                                    Icon(Icons.Filled.ContentPaste, contentDescription = stringResource(R.string.paste))
                                 }
                             }
                         )
@@ -518,25 +551,26 @@ fun NapectApp(
                         Button(
                             onClick = {
                                 val url = fabUrlText.trim()
-                                if (url.isNotBlank() && importVm != null) {
-                                    try { importVm.fetchUrl(url) } catch (_: Exception) { }
+                                if (url.isNotBlank()) {
+                                    try { importVm.fetchUrl(url) } catch (e: Exception) { Timber.w(e) }
                                 }
                                 showUrlDialog = false
                                 fabUrlText = ""
                                 navController.navigate("add")
                             },
                             enabled = fabUrlText.isNotBlank()
-                        ) { Text("Importovat") }
+                        ) { Text(stringResource(R.string.import_action)) }
                     },
                     dismissButton = {
                         TextButton(onClick = {
                             showUrlDialog = false
                             fabUrlText = ""
-                        }) { Text("Zrušit") }
+                        }) { Text(stringResource(R.string.cancel)) }
                     }
                 )
             }
         }
+    }
     }
 
         // Scrim overlay — covers the full screen (app bar + nav bar + content)
@@ -577,36 +611,36 @@ fun NapectApp(
                     ) {
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    "Zadat odkaz",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(end = 12.dp)
-                                )
-                                SmallFloatingActionButton(
-                                    onClick = {
-                                        fabMenuExpanded = false
-                                        showUrlDialog = true
-                                    }
-                                ) {
-                                    Icon(Icons.Filled.Link, contentDescription = null)
-                                }
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    "Napsat ručně",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(end = 12.dp)
-                                )
-                                SmallFloatingActionButton(
-                                    onClick = {
-                                        fabMenuExpanded = false
-                                        navController.navigate("add")
-                                    }
-                                ) {
-                                    Icon(Icons.Filled.Edit, contentDescription = null)
-                                }
+                                 Text(
+                                     stringResource(R.string.fab_enter_url),
+                                     style = MaterialTheme.typography.bodyLarge,
+                                     color = MaterialTheme.colorScheme.onSurface,
+                                     modifier = Modifier.padding(end = 12.dp)
+                                 )
+                                 SmallFloatingActionButton(
+                                     onClick = {
+                                         fabMenuExpanded = false
+                                         showUrlDialog = true
+                                     }
+                                 ) {
+                                     Icon(Icons.Filled.Link, contentDescription = stringResource(R.string.fab_enter_url))
+                                 }
+                             }
+                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                 Text(
+                                     stringResource(R.string.fab_write_manually),
+                                     style = MaterialTheme.typography.bodyLarge,
+                                     color = MaterialTheme.colorScheme.onSurface,
+                                     modifier = Modifier.padding(end = 12.dp)
+                                 )
+                                 SmallFloatingActionButton(
+                                     onClick = {
+                                         fabMenuExpanded = false
+                                         navController.navigate("add")
+                                     }
+                                 ) {
+                                     Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.fab_write_manually))
+                                 }
                             }
                         }
                     }
@@ -615,7 +649,7 @@ fun NapectApp(
                     ) {
                         Icon(
                             imageVector = if (fabMenuExpanded) Icons.Filled.Close else Icons.Filled.Add,
-                            contentDescription = if (fabMenuExpanded) "Zavřít nabídku" else "Přidat recept",
+                            contentDescription = if (fabMenuExpanded) stringResource(R.string.fab_close_menu) else stringResource(R.string.fab_add_recipe),
                             modifier = Modifier.size(32.dp)
                         )
                     }
