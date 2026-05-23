@@ -9,7 +9,7 @@ import com.tkolymp.napect.data.local.DatabaseProvider
 import com.tkolymp.napect.data.local.SettingsRepository
 import com.tkolymp.napect.domain.repository.RecipeRepository
 import com.tkolymp.napect.data.repository.RecipeRepositoryImpl
-import dagger.Binds
+import androidx.work.WorkManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -49,6 +49,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideSettingsRepository(@ApplicationContext ctx: Context): SettingsRepository = SettingsRepository(ctx)
+
+    @Provides
+    @Singleton
+    fun provideWorkManager(@ApplicationContext ctx: Context): WorkManager = WorkManager.getInstance(ctx)
 }
 
 @Module

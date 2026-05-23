@@ -1076,12 +1076,12 @@ Phase 3: High-Impact Refactors (1–4w each)
 - [x] 3.10 Extract all hardcoded Czech strings to strings.xml
 - [x] 3.11 Fix KSP version to match Kotlin (2.3.21-1.0.20 in libs.versions.toml) — KSP 2.3.0+ is standalone, already correct
 - [x] 3.12 Fix SettingsRepository inline creation in SettingsScreen — wrap in remember()
-Phase 4: Long-Term (not yet started)
+Phase 4: Long-Term
 - [ ] 4.1 Modularize into multi-module architecture
-- [ ] 4.2 Implement proper UserPreferences DataStore singleton
-- [ ] 4.3 Add WorkManager for background URL import / OCR
-- [ ] 4.4 Add Coil for image loading
-- [ ] 4.5 Add CI/CD pipeline with lint, ktlint, detekt
-- [ ] 4.6 Add Jetpack Benchmark tests
-- [ ] 4.7 Add feature flags
-- [ ] 4.8 Add screenshot protection (FLAG_SECURE)
+- [x] 4.2 Implement proper UserPreferences DataStore singleton (SettingsViewModel + hiltViewModel() in SettingsScreen, MakeScreen, RecipeDetailScreen)
+- [x] 4.3 Add WorkManager for background URL import (UrlImportWorker with retry + network constraint; UrlImportViewModel.fetchUrlWithWorker(); HiltWorkerFactory wired via Configuration.Provider)
+- [x] 4.4 Add Coil for image loading (replaced PhotoManager.loadBitmap + BitmapFactory everywhere; deleted dead PhotoUtils.kt)
+- [x] 4.5 Add CI/CD pipeline with lint and unit tests (.github/workflows/ci.yml)
+- [x] 4.6 Add Jetpack Benchmark tests (:benchmark module; StartupBenchmark + RecipeListScrollBenchmark macrobenchmarks)
+- [x] 4.7 Add feature flags (FeatureFlags.kt; URL_IMPORT, OCR_IMPORT, VOICE_INPUT, CAMERA, AI_TAG_SUGGESTIONS, PAGED_LIST, BACKGROUND_URL_IMPORT; gated in NapectApp)
+- [x] 4.8 Add screenshot protection (FLAG_SECURE applied in MainActivity from screenshotProtectionEnabled pref; toggle in SettingsScreen)

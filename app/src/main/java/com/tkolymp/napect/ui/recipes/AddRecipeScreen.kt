@@ -1,6 +1,6 @@
 package com.tkolymp.napect.ui.recipes
 
-import androidx.compose.foundation.Image
+import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,7 +19,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import android.Manifest
 import android.content.Intent
@@ -31,7 +30,6 @@ import android.provider.MediaStore
 import timber.log.Timber
 import kotlinx.coroutines.launch
 import com.tkolymp.napect.LocalSnackbarHostState
-import com.tkolymp.napect.data.local.PhotoManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.compose.runtime.getValue
@@ -155,17 +153,6 @@ fun AddRecipeScreen(
     var photoBytes by remember(init) { mutableStateOf<ByteArray?>(init?.photo) }
     var photoPath by remember(init) { mutableStateOf<String?>(init?.photoPath) }
     var sourceUrl by remember { mutableStateOf<String?>(init?.sourceUrl) }
-
-    LaunchedEffect(init) {
-        if (init?.photoPath != null && init?.photo == null) {
-            val bmp = PhotoManager.loadBitmap(init.photoPath!!)
-            if (bmp != null) {
-                val baos = java.io.ByteArrayOutputStream()
-                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, baos)
-                photoBytes = baos.toByteArray()
-            }
-        }
-    }
 
     // ─── Camera & gallery launchers ───────────────────────────────────────────
 
@@ -309,6 +296,7 @@ fun AddRecipeScreen(
                         val preview = buildPreviewRecipe(init, title = data.title, summary = data.description, ingredientGroups = ingredientGroups, steps = steps, sourceUrl = data.sourceUrl, servingsBase = servingsBase)
                         onSuggest(preview)
                     } catch (e: Exception) { Timber.w(e) }
+                    importVm.resetState()
                 }
                 is UrlImportState.Error -> {
                     scope.launch { snackbar.showSnackbar(context.getString(R.string.error_import_failed, (importState as UrlImportState.Error).message)) }
@@ -364,14 +352,16 @@ fun AddRecipeScreen(
 
     Column(modifier = modifier.padding(horizontal = 16.dp).verticalScroll(rememberScrollState())) {
 
-        // Photo
-        if (photoBytes != null) {
-            val bmp = sampledBitmap(photoBytes!!)
-            if (bmp != null) {
-                val img = bmp.asImageBitmap()
-                Image(bitmap = img, contentDescription = stringResource(R.string.selected_photo), modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
-            }
-            TextButton(onClick = { photoBytes = null }, modifier = Modifier.padding(top = 8.dp)) { Text(stringResource(R.string.remove_photo)) }
+        // Photo: prefer freshly picked bytes, fall back to existing file path
+        val photoDisplayModel: Any? = photoBytes ?: photoPath?.let { java.io.File(it) }
+        if (photoDisplayModel != null) {
+            AsyncImage(
+                model = photoDisplayModel,
+                contentDescription = stringResource(R.string.selected_photo),
+                modifier = Modifier.fillMaxWidth().height(200.dp),
+                contentScale = ContentScale.Crop
+            )
+            TextButton(onClick = { photoBytes = null; photoPath = null }, modifier = Modifier.padding(top = 8.dp)) { Text(stringResource(R.string.remove_photo)) }
         }
 
         // Title + voice

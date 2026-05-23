@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -27,16 +28,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.tkolymp.napect.R
 import androidx.compose.ui.Alignment
-import kotlinx.coroutines.launch
-import androidx.compose.ui.platform.LocalContext
-import com.tkolymp.napect.data.local.SettingsRepository
+import androidx.compose.material3.Switch
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.tkolymp.napect.data.local.ThemeMode
+import com.tkolymp.napect.ui.settings.SettingsViewModel
 import com.tkolymp.napect.domain.model.TagGroup
 import androidx.compose.material3.MaterialTheme
 
@@ -49,10 +49,8 @@ fun SettingsScreen(
     error: String? = null,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val repo = remember { SettingsRepository(context) }
-    val prefs by repo.prefsFlow.collectAsState(initial = com.tkolymp.napect.data.local.UserPreferences())
-    val scope = rememberCoroutineScope()
+    val settingsVm: SettingsViewModel = hiltViewModel()
+    val prefs by settingsVm.prefs.collectAsState()
 
     Column(modifier = modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
         if (error != null) {
@@ -67,7 +65,7 @@ fun SettingsScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             ThemeMode.values().forEach { mode ->
                 val selected = prefs.themeMode == mode
-                FilterChip(selected = selected, onClick = { scope.launch { repo.setThemeMode(mode) } }, label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercaseChar() }) })
+                FilterChip(selected = selected, onClick = { settingsVm.setThemeMode(mode) }, label = { Text(mode.name.lowercase().replaceFirstChar { it.uppercaseChar() }) })
                 Spacer(modifier = Modifier.size(4.dp))
             }
         }
@@ -75,8 +73,21 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.size(12.dp))
         Text(stringResource(R.string.default_servings_label, prefs.defaultServings))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { scope.launch { repo.setDefaultServings((prefs.defaultServings - 1).coerceAtLeast(1)) } }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Remove, contentDescription = stringResource(R.string.default_servings_decrease)) }
-            IconButton(onClick = { scope.launch { repo.setDefaultServings(prefs.defaultServings + 1) } }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Add, contentDescription = stringResource(R.string.default_servings_increase)) }
+            IconButton(onClick = { settingsVm.setDefaultServings((prefs.defaultServings - 1).coerceAtLeast(1)) }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Remove, contentDescription = stringResource(R.string.default_servings_decrease)) }
+            IconButton(onClick = { settingsVm.setDefaultServings(prefs.defaultServings + 1) }, modifier = Modifier.size(40.dp)) { Icon(imageVector = Icons.Filled.Add, contentDescription = stringResource(R.string.default_servings_increase)) }
+        }
+
+        Spacer(modifier = Modifier.size(16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(stringResource(R.string.setting_screenshot_protection))
+            Switch(
+                checked = prefs.screenshotProtectionEnabled,
+                onCheckedChange = { settingsVm.setScreenshotProtectionEnabled(it) }
+            )
         }
 
         Spacer(modifier = Modifier.size(16.dp))

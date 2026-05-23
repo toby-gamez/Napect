@@ -16,6 +16,11 @@ import com.tkolymp.napect.domain.model.IngredientGroup
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.model.Step
 import com.tkolymp.napect.domain.repository.RecipeRepository
+import androidx.work.ExistingWorkPolicy
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import com.tkolymp.napect.data.network.ImportedIngredientGroup
+import com.tkolymp.napect.data.work.UrlImportWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +28,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
+import org.json.JSONObject
+import timber.log.Timber
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -40,7 +47,8 @@ class UrlImportViewModel @Inject constructor(
     private val service: UrlImportService,
     private val repo: RecipeRepository,
     private val gemini: GeminiNanoService,
-    private val ai: AiClient
+    private val ai: AiClient,
+    private val workManager: WorkManager,
 ) : ViewModel() {
     private val _state = MutableStateFlow<UrlImportState>(UrlImportState.Idle)
     val state: StateFlow<UrlImportState> = _state.asStateFlow()
@@ -155,6 +163,10 @@ class UrlImportViewModel @Inject constructor(
         }
     }
 
+    fun resetState() {
+        _state.value = UrlImportState.Idle
+    }
+
     fun saveImported(data: ImportedRecipeData, onComplete: (Long) -> Unit = {}) {
         viewModelScope.launch {
             // Convert each imported ingredient group into a domain IngredientGroup
@@ -187,6 +199,68 @@ class UrlImportViewModel @Inject constructor(
             val id = repo.saveRecipeWithTags(recipe, tagIds)
             _state.value = UrlImportState.Saved
             onComplete(id)
+        }
+    }
+
+    /**
+     * Background-resilient URL import via WorkManager. Survives process death and retries
+     * on network failure (up to 2 times with exponential backoff).
+     * On success, reads the JSON result file the worker persisted and emits [UrlImportState.Success].
+     */
+    fun fetchUrlWithWorker(url: String) {
+        _state.value = UrlImportState.Loading
+        val request = UrlImportWorker.buildRequest(url)
+        workManager.enqueueUniqueWork(UrlImportWorker.WORK_NAME, ExistingWorkPolicy.REPLACE, request)
+
+        viewModelScope.launch {
+            workManager.getWorkInfosForUniqueWorkFlow(UrlImportWorker.WORK_NAME).collect { infos ->
+                val info = infos.firstOrNull() ?: return@collect
+                when (info.state) {
+                    WorkInfo.State.SUCCEEDED -> {
+                        val filePath = info.outputData.getString(UrlImportWorker.KEY_RESULT_FILE)
+                        val data = filePath?.let { readResultFile(it) }
+                        _state.value = if (data != null) {
+                            UrlImportState.Success(data)
+                        } else {
+                            UrlImportState.Error("Failed to read import result")
+                        }
+                    }
+                    WorkInfo.State.FAILED -> {
+                        val error = info.outputData.getString(UrlImportWorker.KEY_ERROR) ?: "Import failed"
+                        Timber.w("UrlImportWorker failed: %s", error)
+                        _state.value = UrlImportState.Error(error)
+                    }
+                    WorkInfo.State.CANCELLED -> _state.value = UrlImportState.Idle
+                    else -> {} // ENQUEUED, RUNNING, BLOCKED — stay in Loading
+                }
+            }
+        }
+    }
+
+    private fun readResultFile(path: String): ImportedRecipeData? {
+        return try {
+            val json = JSONObject(java.io.File(path).readText())
+            java.io.File(path).delete()
+            val groups = (0 until json.getJSONArray("ingredientGroups").length()).map { i ->
+                val g = json.getJSONArray("ingredientGroups").getJSONObject(i)
+                val ings = (0 until g.getJSONArray("ingredients").length()).map { j ->
+                    g.getJSONArray("ingredients").getString(j)
+                }
+                ImportedIngredientGroup(name = g.getString("name"), ingredients = ings)
+            }
+            val steps = (0 until json.getJSONArray("steps").length()).map { i ->
+                json.getJSONArray("steps").getString(i)
+            }
+            ImportedRecipeData(
+                title = json.getString("title"),
+                description = json.optString("description").ifBlank { null },
+                ingredientGroups = groups,
+                steps = steps,
+                sourceUrl = json.optString("sourceUrl").ifBlank { null }
+            )
+        } catch (e: Exception) {
+            Timber.w(e, "Failed to deserialize import result from %s", path)
+            null
         }
     }
 }

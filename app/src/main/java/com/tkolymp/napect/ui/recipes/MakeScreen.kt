@@ -3,8 +3,8 @@ package com.tkolymp.napect.ui.recipes
 import android.app.Activity
 import android.view.WindowManager
 // animations removed to avoid overlapping during transitions
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -52,7 +52,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -60,10 +59,10 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.tkolymp.napect.R
 import com.tkolymp.napect.domain.model.Ingredient
-import com.tkolymp.napect.data.local.PhotoManager
+import coil.compose.AsyncImage
 import com.tkolymp.napect.domain.model.Recipe
+import com.tkolymp.napect.ui.settings.SettingsViewModel
 import kotlinx.coroutines.delay
-import com.tkolymp.napect.data.local.SettingsRepository
 
 @Composable
 fun MakeScreen(
@@ -76,9 +75,8 @@ fun MakeScreen(
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
-    // Load user prefs to prefill servings for the prepare (Make) screen
-    val repo = remember { SettingsRepository(context) }
-    val prefs by repo.prefsFlow.collectAsState(initial = com.tkolymp.napect.data.local.UserPreferences())
+    val settingsVm: SettingsViewModel = hiltViewModel()
+    val prefs by settingsVm.prefs.collectAsState()
     var servings by remember(recipe, prefs) { mutableStateOf(prefs.defaultServings.coerceAtLeast(1)) }
 
     // Keep screen on while this composable is present
@@ -139,18 +137,14 @@ fun MakeScreen(
             // add top padding to leave room for the floating timer so it doesn't overlap content
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 56.dp, bottom = 16.dp)) {
                 // Photo (kept at top for context)
-                if (recipe.photoPath != null) {
-                    val bmp = PhotoManager.loadBitmap(recipe.photoPath!!)
-                    if (bmp != null) {
-                        val img = bmp.asImageBitmap()
-                        Image(bitmap = img, contentDescription = stringResource(R.string.recipe_photo), modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
-                     }
-                 } else if (recipe.photo != null) {
-                     val bmp = sampledBitmap(recipe.photo!!)
-                     if (bmp != null) {
-                         val img = bmp.asImageBitmap()
-                         Image(bitmap = img, contentDescription = stringResource(R.string.recipe_photo), modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
-                    }
+                val photoModel: Any? = recipe.photoPath?.let { java.io.File(it) } ?: recipe.photo
+                if (photoModel != null) {
+                    AsyncImage(
+                        model = photoModel,
+                        contentDescription = stringResource(R.string.recipe_photo),
+                        modifier = Modifier.fillMaxWidth().height(200.dp),
+                        contentScale = ContentScale.Crop
+                    )
                 }
 
                 // Title row

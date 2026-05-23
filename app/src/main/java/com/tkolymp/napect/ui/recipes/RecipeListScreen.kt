@@ -1,6 +1,5 @@
 package com.tkolymp.napect.ui.recipes
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -42,12 +41,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.tkolymp.napect.R
-import com.tkolymp.napect.data.local.PhotoManager
+import coil.compose.AsyncImage
 import com.tkolymp.napect.domain.model.RecipeListItem
 import com.tkolymp.napect.domain.model.Tag
 import com.tkolymp.napect.domain.model.TagGroup
@@ -118,11 +116,12 @@ fun RecipeListScreen(
                         Column(modifier = Modifier.padding(12.dp)) {
                             // compact detail-like header: photo, title, summary, tags
                             if (r.photoPath != null) {
-                                val bmp = PhotoManager.loadBitmap(r.photoPath!!)
-                                if (bmp != null) {
-                                    val img = bmp.asImageBitmap()
-                                    Image(bitmap = img, contentDescription = stringResource(R.string.recipe_photo), modifier = Modifier.fillMaxWidth().height(140.dp), contentScale = ContentScale.Crop)
-                                }
+                                AsyncImage(
+                                    model = java.io.File(r.photoPath!!),
+                                    contentDescription = stringResource(R.string.recipe_photo),
+                                    modifier = Modifier.fillMaxWidth().height(140.dp),
+                                    contentScale = ContentScale.Crop
+                                )
                             }
 
                             // Title row

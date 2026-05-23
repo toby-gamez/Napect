@@ -2,16 +2,17 @@ package com.tkolymp.napect
 
 import android.os.Bundle
 import android.content.Intent
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.SideEffect
 import com.tkolymp.napect.data.local.DatabaseProvider
 import com.tkolymp.napect.data.network.UrlImportService
 import com.tkolymp.napect.ui.recipes.UrlImportViewModel
 import com.tkolymp.napect.data.ai.GeminiNanoService
 import com.tkolymp.napect.data.ai.AiClient
-import androidx.compose.ui.Modifier
 import com.tkolymp.napect.ui.theme.NapectTheme
 import com.tkolymp.napect.data.local.SettingsRepository
 import com.tkolymp.napect.data.local.ThemeMode
@@ -75,6 +76,14 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK -> true
                 ThemeMode.LIGHT -> false
                 else -> isSystemInDarkTheme()
+            }
+
+            SideEffect {
+                if (prefs.screenshotProtectionEnabled) {
+                    window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                } else {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                }
             }
 
             NapectTheme(darkTheme = dark) {

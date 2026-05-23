@@ -88,6 +88,11 @@ dependencies {
     // Network (URL import) via version catalog
     implementation(libs.okhttp)
     implementation(libs.timber)
+    implementation(libs.coil.compose)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler)
+    implementation(libs.androidx.profileinstaller)
     // Image decoding (for reading picked images) - removed unused Glide dependency
     // DataStore Preferences for app settings via version catalog
     implementation(libs.androidx.datastore.preferences)

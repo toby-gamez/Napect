@@ -24,12 +24,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
-import com.tkolymp.napect.data.local.SettingsRepository
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.tkolymp.napect.ui.settings.SettingsViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -37,11 +37,9 @@ import androidx.compose.ui.unit.dp
 import com.tkolymp.napect.R
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
-import com.tkolymp.napect.data.local.PhotoManager
+import coil.compose.AsyncImage
 import com.tkolymp.napect.domain.model.Recipe
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.height
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
@@ -56,6 +54,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import com.tkolymp.napect.LocalSnackbarHostState
 import timber.log.Timber
@@ -72,8 +71,8 @@ fun RecipeDetailScreen(
     onRegisterTopBarActions: (((@Composable () -> Unit) -> Unit))? = null
 ) {
     val context = LocalContext.current
-    val repo = remember { SettingsRepository(context) }
-    val prefs by repo.prefsFlow.collectAsState(initial = com.tkolymp.napect.data.local.UserPreferences())
+    val settingsVm: SettingsViewModel = hiltViewModel()
+    val prefs by settingsVm.prefs.collectAsState()
 
     // On detail screen show amounts for a single portion (as requested)
     var servings by remember(recipe, prefs) { mutableStateOf(1) }
@@ -81,18 +80,14 @@ fun RecipeDetailScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState())) {
-            if (recipe.photoPath != null) {
-                val bmp = PhotoManager.loadBitmap(recipe.photoPath!!)
-                if (bmp != null) {
-                    val img = bmp.asImageBitmap()
-                    Image(bitmap = img, contentDescription = stringResource(R.string.recipe_photo), modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
-                 }
-             } else if (recipe.photo != null) {
-                 val bmp = sampledBitmap(recipe.photo!!)
-                 if (bmp != null) {
-                     val img = bmp.asImageBitmap()
-                     Image(bitmap = img, contentDescription = stringResource(R.string.recipe_photo), modifier = Modifier.fillMaxWidth().height(200.dp), contentScale = ContentScale.Crop)
-                }
+            val photoModel: Any? = recipe.photoPath?.let { java.io.File(it) } ?: recipe.photo
+            if (photoModel != null) {
+                AsyncImage(
+                    model = photoModel,
+                    contentDescription = stringResource(R.string.recipe_photo),
+                    modifier = Modifier.fillMaxWidth().height(200.dp),
+                    contentScale = ContentScale.Crop
+                )
             }
 
             // Title row
@@ -186,7 +181,7 @@ fun RecipeDetailScreen(
                 val picked = Calendar.getInstance().apply { set(Calendar.YEAR, y); set(Calendar.MONTH, m); set(Calendar.DAY_OF_MONTH, d); set(Calendar.HOUR_OF_DAY, 12); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0) }
                 coroutineScope.launch {
                     try {
-                        repo.setPlannedCookDate(recipe.id, picked.timeInMillis)
+                        settingsVm.setPlannedCookDate(recipe.id, picked.timeInMillis)
                         snackbar.showSnackbar(context.getString(R.string.plan_cooking_success, d, m+1, y))
                     } catch (e: Exception) {
                         Timber.w(e)

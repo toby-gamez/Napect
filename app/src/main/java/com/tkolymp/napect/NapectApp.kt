@@ -54,14 +54,13 @@ import com.tkolymp.napect.ui.recipes.RecipeListScreen
 import com.tkolymp.napect.ui.recipes.RecipeDetailScreen
 import com.tkolymp.napect.ui.recipes.MakeScreen
 import com.tkolymp.napect.ui.recipes.UrlImportViewModel
-import com.tkolymp.napect.data.local.PhotoManager
+import coil.compose.AsyncImage
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SearchBar
 import androidx.compose.material3.ListItem
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material3.Card
 import kotlinx.coroutines.launch
@@ -114,6 +113,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
+import com.tkolymp.napect.data.local.PhotoManager
 
 val LocalSnackbarHostState = compositionLocalOf { SnackbarHostState() }
 
@@ -233,7 +233,11 @@ fun NapectApp(
             LaunchedEffect(initialSharedUrl, initialSharedImageUri) {
                 if (!initialSharedUrl.isNullOrBlank()) {
                     try {
-                        importVm.fetchUrl(initialSharedUrl)
+                        if (com.tkolymp.napect.FeatureFlags.BACKGROUND_URL_IMPORT) {
+                            importVm.fetchUrlWithWorker(initialSharedUrl)
+                        } else {
+                            importVm.fetchUrl(initialSharedUrl)
+                        }
                     } catch (e: java.lang.Exception) {
                         Timber.w(e, "Failed to fetch initial shared URL")
                     }
@@ -305,11 +309,12 @@ fun NapectApp(
                                          .padding(8.dp)) {
                                          Column(modifier = Modifier.padding(12.dp)) {
                                              if (r.photoPath != null) {
-                                                 val bmp = PhotoManager.loadBitmap(r.photoPath!!)
-                                                 if (bmp != null) {
-                                                     val img = bmp.asImageBitmap()
-                                                     androidx.compose.foundation.Image(bitmap = img, contentDescription = "Fotografie receptu", modifier = Modifier.fillMaxWidth().height(120.dp), contentScale = ContentScale.Crop)
-                                                 }
+                                                 AsyncImage(
+                                                     model = java.io.File(r.photoPath!!),
+                                                     contentDescription = "Fotografie receptu",
+                                                     modifier = Modifier.fillMaxWidth().height(120.dp),
+                                                     contentScale = ContentScale.Crop
+                                                 )
                                              }
                                              Text(r.title, style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
                                              r.summary?.let { Text(it, modifier = Modifier.padding(top = 4.dp)) }
@@ -365,11 +370,12 @@ fun NapectApp(
                                          .padding(8.dp)) {
                                          Column(modifier = Modifier.padding(12.dp)) {
                                              if (r.photoPath != null) {
-                                                 val bmp = PhotoManager.loadBitmap(r.photoPath!!)
-                                                 if (bmp != null) {
-                                                     val img = bmp.asImageBitmap()
-                                                     androidx.compose.foundation.Image(bitmap = img, contentDescription = "Fotografie receptu", modifier = Modifier.fillMaxWidth().height(120.dp), contentScale = ContentScale.Crop)
-                                                 }
+                                                 AsyncImage(
+                                                     model = java.io.File(r.photoPath!!),
+                                                     contentDescription = "Fotografie receptu",
+                                                     modifier = Modifier.fillMaxWidth().height(120.dp),
+                                                     contentScale = ContentScale.Crop
+                                                 )
                                              }
                                              Text(r.title, style = androidx.compose.material3.MaterialTheme.typography.headlineSmall)
                                              r.summary?.let { Text(it, modifier = Modifier.padding(top = 4.dp)) }
@@ -552,7 +558,13 @@ fun NapectApp(
                             onClick = {
                                 val url = fabUrlText.trim()
                                 if (url.isNotBlank()) {
-                                    try { importVm.fetchUrl(url) } catch (e: Exception) { Timber.w(e) }
+                                    try {
+                                        if (com.tkolymp.napect.FeatureFlags.BACKGROUND_URL_IMPORT) {
+                                            importVm.fetchUrlWithWorker(url)
+                                        } else {
+                                            importVm.fetchUrl(url)
+                                        }
+                                    } catch (e: Exception) { Timber.w(e) }
                                 }
                                 showUrlDialog = false
                                 fabUrlText = ""

@@ -24,4 +24,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Napect"
 include(":app")
+include(":benchmark")
  

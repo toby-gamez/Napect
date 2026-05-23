@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -14,19 +15,25 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 enum class ThemeMode { AUTO, LIGHT, DARK }
 
-data class UserPreferences(val themeMode: ThemeMode = ThemeMode.AUTO, val defaultServings: Int = 4)
+data class UserPreferences(
+    val themeMode: ThemeMode = ThemeMode.AUTO,
+    val defaultServings: Int = 4,
+    val screenshotProtectionEnabled: Boolean = false,
+)
 
 class SettingsRepository(private val context: Context) {
     private object Keys {
         val THEME = stringPreferencesKey("theme_mode")
         val DEFAULT_SERVINGS = intPreferencesKey("default_servings")
+        val SCREENSHOT_PROTECTION = booleanPreferencesKey("screenshot_protection")
         fun plannedCookKey(id: Long) = stringPreferencesKey("planned_cook_\$id")
     }
 
     val prefsFlow: Flow<UserPreferences> = context.dataStore.data.map { prefs ->
         val theme = prefs[Keys.THEME]?.let { try { ThemeMode.valueOf(it) } catch (_: Exception) { ThemeMode.AUTO } } ?: ThemeMode.AUTO
         val servings = prefs[Keys.DEFAULT_SERVINGS] ?: 4
-        UserPreferences(themeMode = theme, defaultServings = servings)
+        val screenshotProtection = prefs[Keys.SCREENSHOT_PROTECTION] ?: false
+        UserPreferences(themeMode = theme, defaultServings = servings, screenshotProtectionEnabled = screenshotProtection)
     }
 
     suspend fun setThemeMode(mode: ThemeMode) {
@@ -35,6 +42,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setDefaultServings(value: Int) {
         context.dataStore.edit { prefs -> prefs[Keys.DEFAULT_SERVINGS] = value }
+    }
+
+    suspend fun setScreenshotProtectionEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[Keys.SCREENSHOT_PROTECTION] = enabled }
     }
 
     suspend fun setPlannedCookDate(recipeId: Long, epochMillis: Long) {
