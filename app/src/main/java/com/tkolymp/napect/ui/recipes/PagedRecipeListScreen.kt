@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,11 +46,13 @@ import com.tkolymp.napect.domain.model.RecipeListItem
 import com.tkolymp.napect.domain.model.Tag
 import com.tkolymp.napect.domain.model.TagGroup
 import kotlinx.coroutines.flow.Flow
+import timber.log.Timber
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PagedRecipeListScreen(
     pagedRecipes: Flow<PagingData<RecipeListItem>>,
+    modifier: Modifier = Modifier,
     onItemClick: (Long) -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(0.dp),
     availableTags: List<Tag> = emptyList(),
@@ -61,7 +64,11 @@ fun PagedRecipeListScreen(
 ) {
     val lazyItems = pagedRecipes.collectAsLazyPagingItems()
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
+    LaunchedEffect(lazyItems.itemCount, lazyItems.loadState) {
+        Timber.d("PagedRecipeListScreen: itemCount=%d refreshLoadState=%s appendLoadState=%s", lazyItems.itemCount, lazyItems.loadState.refresh::class.simpleName, lazyItems.loadState.append::class.simpleName)
+    }
+
+    Column(modifier = modifier.fillMaxSize().padding(horizontal = 8.dp)) {
         if (!errorMessage.isNullOrBlank()) {
             Card(
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -88,13 +95,18 @@ fun PagedRecipeListScreen(
             }
         }
 
-        if (lazyItems.itemCount == 0 && lazyItems.loadState.refresh is androidx.paging.LoadState.Loading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+        when {
+            lazyItems.itemCount == 0 && lazyItems.loadState.refresh is androidx.paging.LoadState.Loading -> {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
             }
-        }
-
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
+            lazyItems.itemCount == 0 && lazyItems.loadState.refresh is androidx.paging.LoadState.NotLoading -> {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text(emptyMessage, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            else -> LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = contentPadding) {
             items(lazyItems.itemCount) { index ->
                 val r = lazyItems[index]
                 if (r != null) {
@@ -142,6 +154,7 @@ fun PagedRecipeListScreen(
             if (lazyItems.loadState.append is androidx.paging.LoadState.Loading) {
                 item { Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
             }
+        }
         }
     }
 }

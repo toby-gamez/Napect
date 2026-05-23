@@ -1065,14 +1065,14 @@ Phase 2: Medium Effort (2–3d each)
 - [x] 2.12 Fix DisposableEffect(Unit) → DisposableEffect(activity) in MakeScreen
 Phase 3: High-Impact Refactors (1–4w each)
 - [x] 3.1 Create lightweight recipe projection entity (no BLOB) for list queries
-- [ ] 3.2 Introduce use case layer between ViewModel and Repository
+- [x] 3.2 Introduce use case layer between ViewModel and Repository
 - [x] 3.3 Migrate ViewModel wiring to hiltViewModel() in composables
-- [ ] 3.4 Write comprehensive unit tests: DAOs, Repository, TagSuggester, IngredientParser, ViewModel
+- [x] 3.4 Write comprehensive unit tests: DAOs, Repository, TagSuggester, IngredientParser, ViewModel
 - [x] 3.5 Implement Room FTS4 for performant full-text search
 - [x] 3.6 Push tag filtering to Room queries instead of in-memory
 - [x] 3.7 Add Paging 3 to recipe list
 - [x] 3.8 Replace all swallowed exceptions with proper error handling and user-facing errors
-- [ ] 3.9 Add Compose UI tests for critical screens
+- [x] 3.9 Add Compose UI tests for critical screens
 - [x] 3.10 Extract all hardcoded Czech strings to strings.xml
 - [x] 3.11 Fix KSP version to match Kotlin (2.3.21-1.0.20 in libs.versions.toml) — KSP 2.3.0+ is standalone, already correct
 - [x] 3.12 Fix SettingsRepository inline creation in SettingsScreen — wrap in remember()

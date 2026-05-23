@@ -8,6 +8,7 @@ import com.tkolymp.napect.data.local.entity.RecipeListItemWithTags
 import com.tkolymp.napect.data.local.entity.RecipeWithDetails
 import com.tkolymp.napect.data.local.entity.StepEntity
 import kotlinx.coroutines.flow.Flow
+import timber.log.Timber
 
 /** Lightweight container used when inserting a group together with its ingredients. */
 data class IngredientGroupInsert(
@@ -52,15 +53,15 @@ interface RecipeDao {
 
     @Transaction
     @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
-    fun getAllRecipeListItemsPaged(limit: Int, offset: Int): List<RecipeListItemWithTags>
+    suspend fun getAllRecipeListItemsPaged(limit: Int, offset: Int): List<RecipeListItemWithTags>
 
     @Transaction
     @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes WHERE id IN (SELECT recipe_id FROM recipe_tags WHERE tag_id = :tagId) ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
-    fun getRecipeListItemsByTagPaged(tagId: Long, limit: Int, offset: Int): List<RecipeListItemWithTags>
+    suspend fun getRecipeListItemsByTagPaged(tagId: Long, limit: Int, offset: Int): List<RecipeListItemWithTags>
 
     @Transaction
     @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes WHERE id IN (SELECT docid FROM recipe_fts WHERE recipe_fts MATCH :query) ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
-    fun searchRecipeListItemsPaged(query: String, limit: Int, offset: Int): List<RecipeListItemWithTags>
+    suspend fun searchRecipeListItemsPaged(query: String, limit: Int, offset: Int): List<RecipeListItemWithTags>
 
     @Transaction
     @Query("""
@@ -69,7 +70,7 @@ interface RecipeDao {
         AND id IN (SELECT docid FROM recipe_fts WHERE recipe_fts MATCH :query)
         ORDER BY created_at DESC LIMIT :limit OFFSET :offset
     """)
-    fun searchRecipeListItemsByTagPaged(tagId: Long, query: String, limit: Int, offset: Int): List<RecipeListItemWithTags>
+    suspend fun searchRecipeListItemsByTagPaged(tagId: Long, query: String, limit: Int, offset: Int): List<RecipeListItemWithTags>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecipe(recipe: RecipeEntity): Long
@@ -113,6 +114,8 @@ interface RecipeDao {
         steps: List<StepEntity>,
     ): Long {
         val recipeId = insertRecipe(recipe)
+        Timber.d("insertRecipeWithDetails: recipeId=%d title='%s' groups=%d steps=%d",
+            recipeId, recipe.title, ingredientGroups.size, steps.size)
         for (groupInsert in ingredientGroups) {
             val groupId = insertIngredientGroup(groupInsert.group.copy(recipeId = recipeId))
             if (groupInsert.ingredients.isNotEmpty()) {

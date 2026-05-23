@@ -322,7 +322,7 @@ fun NapectApp(
                         val allTags by vm.allTags.collectAsState()
                         val currentTagId by vm.selectedTagId.collectAsState()
                         val usedTags = allTags.filter { tg -> tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER }
-                        PagedRecipeListScreen(pagedRecipes = vm.pagedRecipes, onItemClick = { id -> navController.navigate("recipe/$id") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = currentTagId, onTagSelected = { vm.setSelectedTagId(it) }, onDelete = { id -> vm.deleteRecipe(id) })
+                        PagedRecipeListScreen(pagedRecipes = vm.pagedRecipes, modifier = Modifier.weight(1f), onItemClick = { id -> navController.navigate("recipe/$id") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = currentTagId, onTagSelected = { vm.setSelectedTagId(it) }, onDelete = { id -> vm.deleteRecipe(id) })
                     }
                 }
                 navComposable(AppDestinations.FAVORITES.name,
@@ -381,7 +381,7 @@ fun NapectApp(
                          val allTags by vm.allTags.collectAsState()
                         val currentTagId by vm.selectedTagId.collectAsState()
                         val usedTags = allTags.filter { tg -> (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) && favItems.any { r -> r.tags.any { t -> t.id == tg.id } } }
-                        RecipeListScreen(recipes = favItems, onItemClick = { id -> navController.navigate("recipe/$id") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = currentTagId, onTagSelected = { vm.setSelectedTagId(it) }, onDelete = { id -> vm.deleteRecipe(id) })
+                        RecipeListScreen(recipes = favItems, modifier = Modifier.weight(1f), onItemClick = { id -> navController.navigate("recipe/$id") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = currentTagId, onTagSelected = { vm.setSelectedTagId(it) }, onDelete = { id -> vm.deleteRecipe(id) })
                     }
                 }
                 navComposable(AppDestinations.SETTINGS.name,

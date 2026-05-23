@@ -291,9 +291,10 @@ class RecipeRepositoryImpl(
     }
 
     override suspend fun saveRecipeWithTags(recipe: Recipe, tagIds: List<Long>): Long {
-        // Derive category from selected tags when possible.
+        Timber.d("saveRecipeWithTags: title='%s' tagIds=%s isNew=%b", recipe.title, tagIds, recipe.id == 0L)
         val derivedCategory = if (tagIds.isNotEmpty()) {
             val tagEntities = tagDao.getTagsByIds(tagIds)
+            Timber.d("saveRecipeWithTags: tagEntities count=%d", tagEntities.size)
             val catTag = tagEntities.firstOrNull { it.group == TagGroup.CATEGORY.name }
             if (catTag != null) {
                 val normalized = catTag.name.trim().replace(Regex("\\s+"), "_").uppercase()
@@ -310,13 +311,16 @@ class RecipeRepositoryImpl(
         } else recipe.category
 
         val toSave = recipe.copy(category = derivedCategory)
+        Timber.d("saveRecipeWithTags: derivedCategory=%s", derivedCategory)
 
         val id = if (toSave.id == 0L) {
-            dao.insertRecipeWithDetails(
+            val newId = dao.insertRecipeWithDetails(
                 recipe = toSave.toEntity(),
                 ingredientGroups = toSave.toGroupInserts(),
                 steps = toSave.steps.map { it.toEntity() },
             )
+            Timber.d("saveRecipeWithTags: inserted new recipe id=%d", newId)
+            newId
         } else {
             dao.updateRecipe(toSave.toEntity())
             dao.replaceRecipeDetails(
@@ -324,9 +328,11 @@ class RecipeRepositoryImpl(
                 ingredientGroups = toSave.toGroupInserts(),
                 steps = toSave.steps.map { it.toEntity() },
             )
+            Timber.d("saveRecipeWithTags: updated existing recipe id=%d", toSave.id)
             toSave.id
         }
         dao.setRecipeTags(id, tagIds)
+        Timber.d("saveRecipeWithTags: done id=%d tagsSet=%d", id, tagIds.size)
         return id
     }
 

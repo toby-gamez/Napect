@@ -56,11 +56,10 @@ import com.tkolymp.napect.domain.model.TagGroup
 @Composable
 fun RecipeListScreen(
     recipes: List<RecipeListItem>,
+    modifier: Modifier = Modifier,
     onItemClick: (Long) -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(0.dp),
-    // availableTags should contain TagGroup.CATEGORY and TagGroup.OTHER tags
     availableTags: List<Tag> = emptyList(),
-    // currently selected tag id used for filtering (null = all)
     selectedTagId: Long? = null,
     onTagSelected: (Long?) -> Unit = {},
     onDelete: ((Long) -> Unit)? = null,
@@ -68,8 +67,7 @@ fun RecipeListScreen(
     isLoading: Boolean = false,
     errorMessage: String? = null
 ) {
-    // Keep a small outer padding and apply scaffold contentPadding to the LazyColumn
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(horizontal = 8.dp)) {
         // error banner
         if (!errorMessage.isNullOrBlank()) {
             androidx.compose.material3.Card(
@@ -101,18 +99,15 @@ fun RecipeListScreen(
         }
 
         if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
         } else if (recipes.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(emptyMessage, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(emptyMessage, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        }
-
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = contentPadding) {
             items(recipes) { r ->
                 // animate each card's placement and visibility
                 AnimatedVisibility(visible = true, enter = fadeIn(animationSpec = tween(200)), exit = fadeOut()) {
@@ -158,6 +153,7 @@ fun RecipeListScreen(
                     }
                 }
             }
+        }
         }
     }
 }
