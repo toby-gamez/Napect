@@ -111,6 +111,6 @@ class OpenAiServiceTest {
     }
 
     private companion object {
-        val VALID_RECIPE_JSON = """{"title":"Svíčková","description":"Tradiční česká svíčková.","ingredientGroups":[{"name":"","ingredients":["500g hovězí","200ml smetana"]}],"steps":["Osmažte maso.","Přidejte zeleninu.","Podávejte."],"difficulty":"Střední"}"""
+        val VALID_RECIPE_JSON = """{"title":"Svíčková","description":"Tradiční česká svíčková.","ingredientGroups":[{"name":"","ingredients":[{"amount":500,"unit":"g","name":"hovězí"},{"amount":200,"unit":"ml","name":"smetana"}]}],"steps":["Osmažte maso.","Přidejte zeleninu.","Podávejte."],"difficulty":"Střední","caloriesKcal":null,"fatG":null,"carbsG":null,"proteinsG":null,"nutriScore":null}"""
     }
 }

@@ -23,6 +23,7 @@ import com.tkolymp.napect.data.work.UrlImportWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -143,7 +144,14 @@ class UrlImportViewModel @Inject constructor(
         return com.tkolymp.napect.domain.model.Category.MAIN
     }
 
+    private fun isValidUrl(url: String) =
+        url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)
+
     fun fetchUrl(url: String) {
+        if (!isValidUrl(url)) {
+            _state.value = UrlImportState.Error("Neplatná URL adresa. Zadejte odkaz začínající http:// nebo https://")
+            return
+        }
         viewModelScope.launch {
             _state.value = UrlImportState.Loading
             val res = ai.extractRecipeFromUrl(url)
@@ -200,13 +208,26 @@ class UrlImportViewModel @Inject constructor(
      * On success, reads the JSON result file the worker persisted and emits [UrlImportState.Success].
      */
     fun fetchUrlWithWorker(url: String) {
+        if (!isValidUrl(url)) {
+            _state.value = UrlImportState.Error("Neplatná URL adresa. Zadejte odkaz začínající http:// nebo https://")
+            return
+        }
         _state.value = UrlImportState.Loading
         val request = UrlImportWorker.buildRequest(url)
         workManager.enqueueUniqueWork(UrlImportWorker.WORK_NAME, ExistingWorkPolicy.REPLACE, request)
 
         viewModelScope.launch {
-            workManager.getWorkInfosForUniqueWorkFlow(UrlImportWorker.WORK_NAME).collect { infos ->
-                val info = infos.firstOrNull() ?: return@collect
+            try {
+                // Collect only until the first terminal state — WorkInfo.State emits multiple times
+                // for SUCCEEDED which would cause readResultFile to fail on the second read
+                // (file already deleted by the first successful read).
+                val terminalInfos = workManager.getWorkInfosForUniqueWorkFlow(UrlImportWorker.WORK_NAME)
+                    .first { infos ->
+                        infos.firstOrNull()?.state?.let { s ->
+                            s == WorkInfo.State.SUCCEEDED || s == WorkInfo.State.FAILED || s == WorkInfo.State.CANCELLED
+                        } ?: false
+                    }
+                val info = terminalInfos.firstOrNull() ?: return@launch
                 when (info.state) {
                     WorkInfo.State.SUCCEEDED -> {
                         val filePath = info.outputData.getString(UrlImportWorker.KEY_RESULT_FILE)
@@ -223,7 +244,11 @@ class UrlImportViewModel @Inject constructor(
                         _state.value = UrlImportState.Error(error)
                     }
                     WorkInfo.State.CANCELLED -> _state.value = UrlImportState.Idle
-                    else -> {} // ENQUEUED, RUNNING, BLOCKED — stay in Loading
+                    else -> {}
+                }
+            } catch (e: Exception) {
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    _state.value = UrlImportState.Error(e.message ?: "Import failed")
                 }
             }
         }
@@ -238,7 +263,18 @@ class UrlImportViewModel @Inject constructor(
                 val ings = (0 until g.getJSONArray("ingredients").length()).map { j ->
                     g.getJSONArray("ingredients").getString(j)
                 }
-                ImportedIngredientGroup(name = g.getString("name"), ingredients = ings)
+                val structuredIngs = mutableListOf<com.tkolymp.napect.data.network.ImportedIngredient>()
+                g.optJSONArray("structuredIngredients")?.let { arr ->
+                    for (j in 0 until arr.length()) {
+                        val o = arr.getJSONObject(j)
+                        structuredIngs.add(com.tkolymp.napect.data.network.ImportedIngredient(
+                            amount = if (o.isNull("amount")) null else o.optDouble("amount").takeIf { !it.isNaN() },
+                            unit = if (o.isNull("unit")) null else o.optString("unit").ifBlank { null },
+                            name = o.optString("name"),
+                        ))
+                    }
+                }
+                ImportedIngredientGroup(name = g.getString("name"), ingredients = ings, structuredIngredients = structuredIngs)
             }
             val steps = (0 until json.getJSONArray("steps").length()).map { i ->
                 json.getJSONArray("steps").getString(i)
@@ -248,7 +284,12 @@ class UrlImportViewModel @Inject constructor(
                 description = json.optString("description").ifBlank { null },
                 ingredientGroups = groups,
                 steps = steps,
-                sourceUrl = json.optString("sourceUrl").ifBlank { null }
+                sourceUrl = json.optString("sourceUrl").ifBlank { null },
+                caloriesKcal = if (json.isNull("caloriesKcal")) null else json.optDouble("caloriesKcal").takeIf { !it.isNaN() },
+                fatG = if (json.isNull("fatG")) null else json.optDouble("fatG").takeIf { !it.isNaN() },
+                carbsG = if (json.isNull("carbsG")) null else json.optDouble("carbsG").takeIf { !it.isNaN() },
+                proteinsG = if (json.isNull("proteinsG")) null else json.optDouble("proteinsG").takeIf { !it.isNaN() },
+                nutriScore = json.optString("nutriScore").ifBlank { null },
             )
         } catch (e: Exception) {
             Timber.w(e, "Failed to deserialize import result from %s", path)

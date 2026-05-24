@@ -27,6 +27,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 
 import android.net.Uri
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import android.os.Build
 import android.provider.MediaStore
 import timber.log.Timber
@@ -123,6 +126,13 @@ fun AddRecipeScreen(
     var title by remember(init) { mutableStateOf(init?.title ?: "") }
     var summary by remember(init) { mutableStateOf(init?.summary ?: "") }
     var servingsBase by remember(init) { mutableStateOf(init?.servingsBase ?: 4) }
+
+    // Nutrition state (values for the whole recipe)
+    var caloriesKcal by remember(init) { mutableStateOf(init?.caloriesKcal?.let { formatNutritionValue(it) } ?: "") }
+    var fatG by remember(init) { mutableStateOf(init?.fatG?.let { formatNutritionValue(it) } ?: "") }
+    var carbsG by remember(init) { mutableStateOf(init?.carbsG?.let { formatNutritionValue(it) } ?: "") }
+    var proteinsG by remember(init) { mutableStateOf(init?.proteinsG?.let { formatNutritionValue(it) } ?: "") }
+    var nutriScore by remember(init) { mutableStateOf(init?.nutriScore) }
 
     // Ingredient sections: always at least the default "Ingredients" group
     val ingredientGroups = remember(init) {
@@ -258,34 +268,12 @@ fun AddRecipeScreen(
                         if (data.ingredientGroups.size == 1) {
                             defaultGroup.name.value = data.ingredientGroups[0].name
                             defaultGroup.ingredients.clear()
-                            data.ingredientGroups[0].ingredients.forEach { raw ->
-                                try {
-                                    val parsed = com.tkolymp.napect.data.parse.IngredientParser.parse(raw)
-                                    val amtStr = parsed.amount?.let { a ->
-                                        if (a == kotlin.math.floor(a)) a.toInt().toString() else a.toString()
-                                    } ?: ""
-                                    defaultGroup.ingredients.add(IngredientInputState(amtStr, parsed.unit ?: "", parsed.name))
-                                } catch (e: Exception) {
-                                    Timber.w(e, "Ingredient parse failed, using raw text")
-                                    defaultGroup.ingredients.add(IngredientInputState(initialName = raw))
-                                }
-                            }
+                            fillIngredients(data.ingredientGroups[0], defaultGroup)
                         } else {
                             ingredientGroups.clear()
                             data.ingredientGroups.forEach { importedGroup ->
                                 val gs = IngredientGroupState(importedGroup.name)
-                                importedGroup.ingredients.forEach { raw ->
-                                    try {
-                                        val parsed = com.tkolymp.napect.data.parse.IngredientParser.parse(raw)
-                                        val amtStr = parsed.amount?.let { a ->
-                                            if (a == kotlin.math.floor(a)) a.toInt().toString() else a.toString()
-                                        } ?: ""
-                                        gs.ingredients.add(IngredientInputState(amtStr, parsed.unit ?: "", parsed.name))
-                                    } catch (e: Exception) {
-                                        Timber.w(e, "Ingredient parse failed, using raw text")
-                                        gs.ingredients.add(IngredientInputState(initialName = raw))
-                                    }
-                                }
+                                fillIngredients(importedGroup, gs)
                                 if (gs.ingredients.isEmpty()) gs.ingredients.add(IngredientInputState())
                                 ingredientGroups.add(gs)
                             }
@@ -297,6 +285,11 @@ fun AddRecipeScreen(
                         data.steps.forEach { steps.add(it) }
                     }
                     if (!data.sourceUrl.isNullOrBlank()) sourceUrl = data.sourceUrl
+                    if (data.caloriesKcal != null && caloriesKcal.isBlank()) caloriesKcal = formatNutritionValue(data.caloriesKcal)
+                    if (data.fatG != null && fatG.isBlank()) fatG = formatNutritionValue(data.fatG)
+                    if (data.carbsG != null && carbsG.isBlank()) carbsG = formatNutritionValue(data.carbsG)
+                    if (data.proteinsG != null && proteinsG.isBlank()) proteinsG = formatNutritionValue(data.proteinsG)
+                    if (data.nutriScore != null && nutriScore == null) nutriScore = data.nutriScore
                     try {
                         val preview = buildPreviewRecipe(init, title = data.title, summary = data.description, ingredientGroups = ingredientGroups, steps = steps, sourceUrl = data.sourceUrl, servingsBase = servingsBase)
                         onSuggest(preview)
@@ -397,6 +390,15 @@ fun AddRecipeScreen(
         }
 
         OutlinedTextField(value = summary, onValueChange = { summary = it }, label = { Text(stringResource(R.string.label_summary)) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+
+        OutlinedTextField(
+            value = sourceUrl ?: "",
+            onValueChange = { sourceUrl = it.ifBlank { null } },
+            label = { Text(stringResource(R.string.label_source_url)) },
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done)
+        )
 
         // Servings
         Spacer(modifier = Modifier.size(8.dp))
@@ -529,6 +531,63 @@ fun AddRecipeScreen(
         }
         Button(onClick = { steps.add("") }, modifier = Modifier.padding(top = 8.dp)) { Text(stringResource(R.string.add_step)) }
 
+        // ── Nutritional values ───────────────────────────────────────────────
+
+        Spacer(modifier = Modifier.size(12.dp))
+        Text(stringResource(R.string.section_nutrition), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.nutrition_per_serving_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.size(4.dp))
+
+        NutritionField(
+            value = caloriesKcal,
+            onValueChange = { caloriesKcal = it },
+            label = stringResource(R.string.nutrition_calories),
+            unit = stringResource(R.string.nutrition_unit_kcal),
+            servingsBase = servingsBase
+        )
+        NutritionField(
+            value = fatG,
+            onValueChange = { fatG = it },
+            label = stringResource(R.string.nutrition_fat),
+            unit = stringResource(R.string.nutrition_unit_g),
+            servingsBase = servingsBase
+        )
+        NutritionField(
+            value = carbsG,
+            onValueChange = { carbsG = it },
+            label = stringResource(R.string.nutrition_carbs),
+            unit = stringResource(R.string.nutrition_unit_g),
+            servingsBase = servingsBase
+        )
+        NutritionField(
+            value = proteinsG,
+            onValueChange = { proteinsG = it },
+            label = stringResource(R.string.nutrition_proteins),
+            unit = stringResource(R.string.nutrition_unit_g),
+            servingsBase = servingsBase
+        )
+
+        // Nutri-Score chip picker
+        Text(
+            stringResource(R.string.nutrition_nutriscore),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        FlowRow(modifier = Modifier.fillMaxWidth()) {
+            listOf("A", "B", "C", "D", "E").forEach { grade ->
+                FilterChip(
+                    selected = nutriScore == grade,
+                    onClick = { nutriScore = if (nutriScore == grade) null else grade },
+                    label = { Text(grade) },
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+            }
+        }
+
         // ── Save / Cancel ────────────────────────────────────────────────────
 
         Spacer(modifier = Modifier.size(12.dp))
@@ -561,7 +620,12 @@ fun AddRecipeScreen(
                             steps = stepsDomain,
                             photo = photoBytes,
                             photoPath = photoPath,
-                            servingsBase = servingsBase
+                            servingsBase = servingsBase,
+                            caloriesKcal = caloriesKcal.toDoubleOrNull(),
+                            fatG = fatG.toDoubleOrNull(),
+                            carbsG = carbsG.toDoubleOrNull(),
+                            proteinsG = proteinsG.toDoubleOrNull(),
+                            nutriScore = nutriScore,
                         ),
                         finalTagIds
                     )
@@ -572,6 +636,78 @@ fun AddRecipeScreen(
     }
 
 }
+}
+
+// ─── Ingredient import helper ─────────────────────────────────────────────────
+
+private fun fillIngredients(
+    importedGroup: com.tkolymp.napect.data.network.ImportedIngredientGroup,
+    target: IngredientGroupState,
+) {
+    if (importedGroup.structuredIngredients.isNotEmpty()) {
+        importedGroup.structuredIngredients.forEach { ing ->
+            val amtStr = ing.amount?.let { a ->
+                if (a == kotlin.math.floor(a)) a.toInt().toString() else a.toString()
+            } ?: ""
+            target.ingredients.add(IngredientInputState(amtStr, ing.unit ?: "", ing.name))
+        }
+    } else {
+        importedGroup.ingredients.forEach { raw ->
+            try {
+                val parsed = com.tkolymp.napect.data.parse.IngredientParser.parse(raw)
+                val amtStr = parsed.amount?.let { a ->
+                    if (a == kotlin.math.floor(a)) a.toInt().toString() else a.toString()
+                } ?: ""
+                target.ingredients.add(IngredientInputState(amtStr, parsed.unit ?: "", parsed.name))
+            } catch (e: Exception) {
+                Timber.w(e, "Ingredient parse failed, using raw text")
+                target.ingredients.add(IngredientInputState(initialName = raw))
+            }
+        }
+    }
+}
+
+// ─── Nutrition helpers ────────────────────────────────────────────────────────
+
+private fun formatNutritionValue(d: Double): String =
+    if (d == kotlin.math.floor(d)) d.toInt().toString() else d.toString()
+
+@Composable
+private fun NutritionField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    unit: String,
+    servingsBase: Int,
+) {
+    val total = if (servingsBase > 1 && value.isNotBlank()) {
+        value.toDoubleOrNull()?.let { v -> formatNutritionValue(v * servingsBase) }
+    } else null
+
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                label = { Text("$label / porci ($unit)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                modifier = Modifier.weight(1f)
+            )
+            if (total != null) {
+                Text(
+                    text = "celkem: $total $unit",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+        }
+    }
 }
 
 // ─── Helper to build a preview Recipe from current UI state ──────────────────

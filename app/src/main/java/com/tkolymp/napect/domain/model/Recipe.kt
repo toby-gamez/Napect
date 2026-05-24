@@ -18,6 +18,12 @@ data class Recipe(
     val tags: List<Tag> = emptyList(),
     val createdAt: Instant = Instant.now(),
     val updatedAt: Instant = Instant.now(),
+    /** Nutritional values per serving. Total = value * servingsBase. */
+    val caloriesKcal: Double? = null,
+    val fatG: Double? = null,
+    val carbsG: Double? = null,
+    val proteinsG: Double? = null,
+    val nutriScore: String? = null,
 ) {
     /** Flat list of all ingredients across all groups, preserving group order. */
     val allIngredients: List<Ingredient> get() = ingredientGroups.flatMap { it.ingredients }

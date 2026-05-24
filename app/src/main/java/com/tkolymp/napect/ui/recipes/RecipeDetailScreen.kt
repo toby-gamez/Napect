@@ -197,6 +197,61 @@ fun RecipeDetailScreen(
                 }
             }
 
+            // ── Nutrition ─────────────────────────────────────────────────────────
+            val hasNutrition = recipe.caloriesKcal != null || recipe.fatG != null ||
+                recipe.carbsG != null || recipe.proteinsG != null || recipe.nutriScore != null
+            if (hasNutrition) {
+                Spacer(modifier = Modifier.size(16.dp))
+                Text(stringResource(R.string.section_nutrition), style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.size(8.dp))
+                androidx.compose.material3.ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        recipe.nutriScore?.let { score ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            ) {
+                                Text(stringResource(R.string.nutrition_nutriscore), style = MaterialTheme.typography.bodyMedium)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                androidx.compose.material3.Surface(
+                                    color = nutriScoreColor(score),
+                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                        Text(
+                                            score,
+                                            color = androidx.compose.ui.graphics.Color.White,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            listOf(
+                                Triple(R.string.nutrition_calories, recipe.caloriesKcal?.times(servings), stringResource(R.string.nutrition_unit_kcal)),
+                                Triple(R.string.nutrition_fat,      recipe.fatG?.times(servings),      stringResource(R.string.nutrition_unit_g)),
+                                Triple(R.string.nutrition_carbs,    recipe.carbsG?.times(servings),    stringResource(R.string.nutrition_unit_g)),
+                                Triple(R.string.nutrition_proteins, recipe.proteinsG?.times(servings), stringResource(R.string.nutrition_unit_g)),
+                            ).forEach { (labelRes, v, unit) ->
+                                if (v != null) {
+                                    NutritionDetailCell(
+                                        label = stringResource(labelRes),
+                                        value = formatNutritionDetail(v),
+                                        unit = unit,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.size(120.dp))
         }
 
@@ -284,7 +339,6 @@ fun RecipeDetailScreen(
         )
     }
 
-    // Register top-bar actions for this detail screen (favorite, edit, delete)
     onRegisterTopBarActions?.invoke({
         Row {
             if (onToggleFavorite != null) {
@@ -300,4 +354,24 @@ fun RecipeDetailScreen(
             }
         }
     })
+}
+
+private fun nutriScoreColor(score: String): androidx.compose.ui.graphics.Color = when (score) {
+    "A" -> androidx.compose.ui.graphics.Color(0xFF1E8F3A)
+    "B" -> androidx.compose.ui.graphics.Color(0xFF78B942)
+    "C" -> androidx.compose.ui.graphics.Color(0xFFEBBA21)
+    "D" -> androidx.compose.ui.graphics.Color(0xFFE07820)
+    else -> androidx.compose.ui.graphics.Color(0xFFD42B0F)
+}
+
+private fun formatNutritionDetail(d: Double): String =
+    if (d == kotlin.math.floor(d)) d.toInt().toString() else "%.1f".format(d)
+
+@Composable
+private fun NutritionDetailCell(label: String, value: String, unit: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleMedium)
+        Text(unit, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }

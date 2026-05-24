@@ -14,9 +14,45 @@ object IngredientParser {
         '⅛' to "1/8"
     )
 
-    private val units = listOf(
-        "g", "kg", "mg", "ml", "l", "tsp", "tbsp", "teaspoon", "teaspoons", "tablespoon", "tablespoons",
-        "cup", "cups", "piece", "pieces", "pcs", "slice", "slices", "clove", "cloves", "pinch", "tbsp.", "tsp.", "ks"
+    private val units = setOf(
+        // Metric
+        "g", "gram", "grams",
+        "kg", "kilogram", "kilograms",
+        "mg",
+        "ml", "milliliter", "milliliters", "millilitre", "millilitres",
+        "l", "liter", "liters", "litre", "litres",
+        "dl", "cl",
+        // English volumetric
+        "tsp", "tsp.", "teaspoon", "teaspoons",
+        "tbsp", "tbsp.", "tablespoon", "tablespoons",
+        "cup", "cups",
+        // English piece
+        "piece", "pieces", "pcs",
+        "slice", "slices",
+        "clove", "cloves",
+        "pinch",
+        "handful",
+        "can", "package", "pkg",
+        // Czech metric
+        "gramu", "gramy", "gramů",
+        "kilogramu", "kilogramy", "kilogramů",
+        "mililitru", "mililitry", "mililitrů",
+        "litru", "litry", "litrů",
+        // Czech volumetric
+        "lžíce", "lžíci", "lžic",
+        "lžička", "lžičky", "lžičku", "lžičce",
+        "šálek", "šálku", "šálky",
+        "hrnek", "hrnku", "hrnky",
+        // Czech piece
+        "ks",
+        "kus", "kusy", "kusů",
+        "špetka", "špetku", "špetky",
+        "stroužek", "stroužku", "stroužky", "stroužků",
+        "plátek", "plátky", "plátků",
+        "hrst", "hrstka", "hrsti",
+        "balení", "balíček",
+        "konzerva", "konzervy",
+        "větvička", "větvičky",
     )
 
     data class Parsed(val amount: Double?, val unit: String?, val name: String)
@@ -67,12 +103,10 @@ object IngredientParser {
             val tokens = rest.split(Regex("\\s+"))
             if (tokens.isNotEmpty()) {
                 val t0 = tokens[0].lowercase().replace(".", "")
-                val found = units.firstOrNull { u -> t0 == u || t0.startsWith(u) }
-                if (found != null) {
+                if (t0 in units) {
                     unit = tokens[0]
                     rest = tokens.drop(1).joinToString(" ")
                 } else {
-                    // sometimes unit is two words like "tablespoon" handled above; otherwise leave
                     unit = null
                 }
             }

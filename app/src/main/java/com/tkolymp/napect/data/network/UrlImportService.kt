@@ -62,6 +62,45 @@ open class UrlImportService(private val client: OkHttpClient = OkHttpClient()) {
         }
     }
 
+    /**
+     * Extracts nutrition values from JSON-LD blocks already in the fetched HTML.
+     * Returns a partial [ImportedRecipeData] with only nutrition fields set; all others are defaults.
+     * Used by [DefaultAiClient] to supplement AI results when nutrition fields come back null.
+     */
+    fun parseNutritionFromHtml(html: String): ImportedRecipeData? {
+        val jsonLdPattern = Pattern.compile("<script[^>]*type=\\\"application/ld\\+json\\\"[^>]*>(.*?)</script>", Pattern.DOTALL or Pattern.CASE_INSENSITIVE)
+        val matcher = jsonLdPattern.matcher(html)
+        while (matcher.find()) {
+            val jsonText = matcher.group(1)?.trim() ?: continue
+            try {
+                val root = if (jsonText.startsWith("[")) JSONArray(jsonText) else JSONObject(jsonText)
+                val nutrition = findNutrition(root) ?: continue
+                val calories = nutrition.optString("calories").ifBlank { null }?.let { parseNutritionNumber(it) }
+                val fat = nutrition.optString("fatContent").ifBlank { null }?.let { parseNutritionNumber(it) }
+                val carbs = nutrition.optString("carbohydrateContent").ifBlank { null }?.let { parseNutritionNumber(it) }
+                val proteins = nutrition.optString("proteinContent").ifBlank { null }?.let { parseNutritionNumber(it) }
+                if (calories != null || fat != null || carbs != null || proteins != null) {
+                    return ImportedRecipeData(title = "", caloriesKcal = calories, fatG = fat, carbsG = carbs, proteinsG = proteins)
+                }
+            } catch (_: Exception) {}
+        }
+        return null
+    }
+
+    private fun findNutrition(root: Any): JSONObject? {
+        if (root is JSONArray) {
+            for (i in 0 until root.length()) findNutrition(root.get(i))?.let { return it }
+        } else if (root is JSONObject) {
+            root.optJSONObject("nutrition")?.let { return it }
+            val type = root.opt("@type")?.toString() ?: root.opt("type")?.toString() ?: ""
+            if (type.contains("Recipe", ignoreCase = true)) {
+                root.optJSONObject("nutrition")?.let { return it }
+            }
+            root.keys().forEach { k -> findNutrition(root.get(k))?.let { return it } }
+        }
+        return null
+    }
+
     private fun extractRecipeFromJsonLd(root: Any): ImportedRecipeData? {
         try {
             if (root is JSONArray) {
@@ -104,7 +143,21 @@ open class UrlImportService(private val client: OkHttpClient = OkHttpClient()) {
                             else -> steps.add(instr.toString())
                         }
                     }
-                    return ImportedRecipeData(title = title, description = description, ingredientGroups = groupIngredients(ingredients), steps = steps)
+                    val nutrition = root.optJSONObject("nutrition")
+                    val calories = nutrition?.optString("calories")?.let { parseNutritionNumber(it) }
+                    val fat = nutrition?.optString("fatContent")?.let { parseNutritionNumber(it) }
+                    val carbs = nutrition?.optString("carbohydrateContent")?.let { parseNutritionNumber(it) }
+                    val proteins = nutrition?.optString("proteinContent")?.let { parseNutritionNumber(it) }
+                    return ImportedRecipeData(
+                        title = title,
+                        description = description,
+                        ingredientGroups = groupIngredients(ingredients),
+                        steps = steps,
+                        caloriesKcal = calories,
+                        fatG = fat,
+                        carbsG = carbs,
+                        proteinsG = proteins,
+                    )
                 }
 
                 // try nested properties
@@ -121,6 +174,9 @@ open class UrlImportService(private val client: OkHttpClient = OkHttpClient()) {
         }
         return null
     }
+
+    private fun parseNutritionNumber(s: String): Double? =
+        Regex("""[\d]+(?:[.,]\d+)?""").find(s)?.value?.replace(',', '.')?.toDoubleOrNull()
 
     private fun extractTitle(html: String): String? {
         val p = Pattern.compile("<title>(.*?)</title>", Pattern.CASE_INSENSITIVE or Pattern.DOTALL)

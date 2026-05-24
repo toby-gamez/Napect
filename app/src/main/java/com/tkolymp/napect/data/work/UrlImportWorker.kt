@@ -11,6 +11,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.tkolymp.napect.data.ai.AiClient
+import com.tkolymp.napect.data.network.ImportedIngredient
 import com.tkolymp.napect.data.network.ImportedIngredientGroup
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -31,11 +32,14 @@ class UrlImportWorker @AssistedInject constructor(
         val url = inputData.getString(KEY_URL) ?: return Result.failure(
             workDataOf(KEY_ERROR to "Missing URL")
         )
+        if (!url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) {
+            return Result.failure(workDataOf(KEY_ERROR to "Neplatná URL adresa: $url"))
+        }
 
         return try {
             val result = ai.extractRecipeFromUrl(url).getOrThrow()
 
-            val json = buildJson(result.title, result.description, result.sourceUrl, result.ingredientGroups, result.steps)
+            val json = buildJson(result.title, result.description, result.sourceUrl, result.ingredientGroups, result.steps, result.caloriesKcal, result.fatG, result.carbsG, result.proteinsG, result.nutriScore)
             val dir = File(applicationContext.filesDir, "pending_imports").also { it.mkdirs() }
             val file = File(dir, "$id.json")
             file.writeText(json)
@@ -54,6 +58,11 @@ class UrlImportWorker @AssistedInject constructor(
         sourceUrl: String?,
         groups: List<ImportedIngredientGroup>,
         steps: List<String>,
+        caloriesKcal: Double?,
+        fatG: Double?,
+        carbsG: Double?,
+        proteinsG: Double?,
+        nutriScore: String?,
     ): String {
         val root = JSONObject()
         root.put("title", title)
@@ -66,12 +75,26 @@ class UrlImportWorker @AssistedInject constructor(
             val ings = JSONArray()
             g.ingredients.forEach { ings.put(it) }
             gObj.put("ingredients", ings)
+            val strucArr = JSONArray()
+            g.structuredIngredients.forEach { ing ->
+                val ingObj = JSONObject()
+                ingObj.put("amount", ing.amount ?: JSONObject.NULL)
+                ingObj.put("unit", ing.unit ?: JSONObject.NULL)
+                ingObj.put("name", ing.name)
+                strucArr.put(ingObj)
+            }
+            gObj.put("structuredIngredients", strucArr)
             groupsArr.put(gObj)
         }
         root.put("ingredientGroups", groupsArr)
         val stepsArr = JSONArray()
         steps.forEach { stepsArr.put(it) }
         root.put("steps", stepsArr)
+        root.put("caloriesKcal", caloriesKcal ?: JSONObject.NULL)
+        root.put("fatG", fatG ?: JSONObject.NULL)
+        root.put("carbsG", carbsG ?: JSONObject.NULL)
+        root.put("proteinsG", proteinsG ?: JSONObject.NULL)
+        root.put("nutriScore", nutriScore ?: JSONObject.NULL)
         return root.toString()
     }
 

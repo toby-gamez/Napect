@@ -1,5 +1,6 @@
 package com.tkolymp.napect.data.ai.openai
 
+import com.tkolymp.napect.data.network.ImportedIngredient
 import com.tkolymp.napect.data.network.ImportedIngredientGroup
 import com.tkolymp.napect.data.network.ImportedRecipeData
 import kotlinx.serialization.SerialName
@@ -34,9 +35,25 @@ data class Usage(
 )
 
 @Serializable
+data class ExtractedIngredient(
+    val amount: Double? = null,
+    val unit: String? = null,
+    val name: String = "",
+)
+
+private fun ExtractedIngredient.toDisplayString(): String = buildString {
+    amount?.let { a ->
+        append(if (a == kotlin.math.floor(a)) a.toInt().toString() else a.toString())
+        append(' ')
+    }
+    unit?.let { append(it); append(' ') }
+    append(name)
+}.trim()
+
+@Serializable
 data class ExtractedIngredientGroup(
     val name: String = "",
-    val ingredients: List<String> = emptyList(),
+    val ingredients: List<ExtractedIngredient> = emptyList(),
 )
 
 @Serializable
@@ -46,13 +63,29 @@ data class ExtractedRecipe(
     val ingredientGroups: List<ExtractedIngredientGroup> = emptyList(),
     val steps: List<String> = emptyList(),
     val difficulty: String? = null,
+    @SerialName("caloriesKcal") val caloriesKcal: Double? = null,
+    @SerialName("fatG") val fatG: Double? = null,
+    @SerialName("carbsG") val carbsG: Double? = null,
+    @SerialName("proteinsG") val proteinsG: Double? = null,
+    @SerialName("nutriScore") val nutriScore: String? = null,
 )
 
 fun ExtractedRecipe.toImportedRecipeData(sourceUrl: String? = null) = ImportedRecipeData(
     title = title,
     description = description,
-    ingredientGroups = ingredientGroups.map { ImportedIngredientGroup(name = it.name, ingredients = it.ingredients) },
+    ingredientGroups = ingredientGroups.map { grp ->
+        ImportedIngredientGroup(
+            name = grp.name,
+            ingredients = grp.ingredients.map { it.toDisplayString() },
+            structuredIngredients = grp.ingredients.map { ImportedIngredient(it.amount, it.unit, it.name) },
+        )
+    },
     steps = steps,
     sourceUrl = sourceUrl,
     difficulty = difficulty,
+    caloriesKcal = caloriesKcal,
+    fatG = fatG,
+    carbsG = carbsG,
+    proteinsG = proteinsG,
+    nutriScore = nutriScore,
 )

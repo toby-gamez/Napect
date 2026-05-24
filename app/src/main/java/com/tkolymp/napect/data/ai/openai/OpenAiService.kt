@@ -33,8 +33,8 @@ class OpenAiService(
                 body = json.encodeToString(
                     ChatRequest(
                         model = model,
-                        messages = RecipePrompt.buildExtractionMessages(html.take(30_000), sourceUrl),
-                        maxTokens = 1500,
+                        messages = RecipePrompt.buildExtractionMessages(html, sourceUrl),
+                        maxTokens = 2000,
                         responseFormat = RecipePrompt.responseFormat,
                     )
                 ),

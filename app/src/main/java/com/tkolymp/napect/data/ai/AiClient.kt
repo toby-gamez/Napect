@@ -31,12 +31,24 @@ class DefaultAiClient(
                 if (htmlResult.isFailure) {
                     urlImportService.importFromUrl(url)
                 } else {
-                    val aiResult = openAi.extractRecipeFromHtml(htmlResult.getOrThrow(), url)
+                    val html = htmlResult.getOrThrow()
+                    val aiResult = openAi.extractRecipeFromHtml(html, url)
                     if (aiResult.isFailure) {
                         Timber.w(aiResult.exceptionOrNull(), "OpenAI extraction failed, falling back to JSON-LD parser")
                         urlImportService.importFromUrl(url)
                     } else {
-                        aiResult
+                        val data = aiResult.getOrThrow()
+                        if (data.caloriesKcal == null && data.fatG == null && data.carbsG == null && data.proteinsG == null) {
+                            val jsonLdNutrition = urlImportService.parseNutritionFromHtml(html)
+                            if (jsonLdNutrition != null) {
+                                Result.success(data.copy(
+                                    caloriesKcal = jsonLdNutrition.caloriesKcal,
+                                    fatG = jsonLdNutrition.fatG,
+                                    carbsG = jsonLdNutrition.carbsG,
+                                    proteinsG = jsonLdNutrition.proteinsG,
+                                ))
+                            } else aiResult
+                        } else aiResult
                     }
                 }
             }.getOrElse { e ->

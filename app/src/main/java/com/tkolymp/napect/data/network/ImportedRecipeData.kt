@@ -1,9 +1,17 @@
 package com.tkolymp.napect.data.network
 
+/** A single ingredient as parsed/extracted (amount and unit may be null). */
+data class ImportedIngredient(
+    val amount: Double? = null,
+    val unit: String? = null,
+    val name: String,
+)
+
 /** A named ingredient sub-section within an imported recipe (e.g. "Těsto", "Na povrch"). */
 data class ImportedIngredientGroup(
-    val name: String = "",            // blank = default / ungrouped
-    val ingredients: List<String>
+    val name: String = "",                                          // blank = default / ungrouped
+    val ingredients: List<String>,                                  // raw strings (JSON-LD / OCR path)
+    val structuredIngredients: List<ImportedIngredient> = emptyList(), // structured (AI path)
 )
 
 data class ImportedRecipeData(
@@ -13,6 +21,11 @@ data class ImportedRecipeData(
     val steps: List<String> = emptyList(),
     val sourceUrl: String? = null,
     val difficulty: String? = null,
+    val caloriesKcal: Double? = null,
+    val fatG: Double? = null,
+    val carbsG: Double? = null,
+    val proteinsG: Double? = null,
+    val nutriScore: String? = null,
 ) {
     /** Flat list of all ingredients across every group (backward-compat helper). */
     val ingredients: List<String> get() = ingredientGroups.flatMap { it.ingredients }

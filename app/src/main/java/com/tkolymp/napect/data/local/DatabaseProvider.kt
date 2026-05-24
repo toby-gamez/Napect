@@ -157,6 +157,17 @@ object DatabaseProvider {
         }
     }
 
+    // Migration from v9 -> v10: add nutritional value columns to recipes.
+    val migration9to10 = object : Migration(9, 10) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE `recipes` ADD COLUMN `calories_kcal` REAL DEFAULT NULL")
+            database.execSQL("ALTER TABLE `recipes` ADD COLUMN `fat_g` REAL DEFAULT NULL")
+            database.execSQL("ALTER TABLE `recipes` ADD COLUMN `carbs_g` REAL DEFAULT NULL")
+            database.execSQL("ALTER TABLE `recipes` ADD COLUMN `proteins_g` REAL DEFAULT NULL")
+            database.execSQL("ALTER TABLE `recipes` ADD COLUMN `nutri_score` TEXT DEFAULT NULL")
+        }
+    }
+
     fun getDatabase(context: Context): NapectDatabase {
         return INSTANCE ?: synchronized(this) {
             val callback = object : RoomDatabase.Callback() {
@@ -183,7 +194,7 @@ object DatabaseProvider {
                 NapectDatabase::class.java,
                 "napect.db"
             )
-                .addMigrations(migration2to3, migration3to4, migration4to5, migration5to6, migration6to7, migration7to8, migration8to9)
+                .addMigrations(migration2to3, migration3to4, migration4to5, migration5to6, migration6to7, migration7to8, migration8to9, migration9to10)
                 .addCallback(callback)
                 .build()
             INSTANCE = instance

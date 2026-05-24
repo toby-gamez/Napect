@@ -36,7 +36,12 @@ fun RecipeWithDetails.toDomain(): Recipe = Recipe(
     steps = steps.sortedBy { it.stepNumber }.map { it.toDomain() },
     tags = tags.map { it.toDomain() },
     createdAt = Instant.ofEpochMilli(recipe.createdAt),
-    updatedAt = Instant.ofEpochMilli(recipe.updatedAt)
+    updatedAt = Instant.ofEpochMilli(recipe.updatedAt),
+    caloriesKcal = recipe.caloriesKcal,
+    fatG = recipe.fatG,
+    carbsG = recipe.carbsG,
+    proteinsG = recipe.proteinsG,
+    nutriScore = recipe.nutriScore,
 )
 
 fun RecipeListItemWithTags.toDomainListItem(): RecipeListItem = RecipeListItem(
@@ -73,6 +78,11 @@ fun Recipe.toEntity(): RecipeEntity = RecipeEntity(
     servingsBase = servingsBase,
     createdAt = createdAt.toEpochMilli(),
     updatedAt = updatedAt.toEpochMilli(),
+    caloriesKcal = caloriesKcal,
+    fatG = fatG,
+    carbsG = carbsG,
+    proteinsG = proteinsG,
+    nutriScore = nutriScore,
 )
 
 // ─── Ingredient group ────────────────────────────────────────────────────────

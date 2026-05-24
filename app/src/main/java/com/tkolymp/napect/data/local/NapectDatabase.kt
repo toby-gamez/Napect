@@ -26,7 +26,8 @@ import com.tkolymp.napect.data.local.dao.TagDao
     // version 7: add photo_path column for file-based photo storage
     // version 8: add FTS4 full-text search (recipe_fts)
     // version 9: drop custom FTS triggers from v8 migration (conflict with Room auto-generated ones)
-    version = 9,
+    // version 10: add nutrition columns (calories_kcal, fat_g, carbs_g, proteins_g, nutri_score)
+    version = 10,
     exportSchema = true
 )
 abstract class NapectDatabase : RoomDatabase() {
