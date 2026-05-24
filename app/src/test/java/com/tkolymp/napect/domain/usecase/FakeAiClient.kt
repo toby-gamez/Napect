@@ -6,8 +6,11 @@ import com.tkolymp.napect.domain.model.Ingredient
 import com.tkolymp.napect.domain.model.Step
 
 class FakeAiClient : AiClient {
+    var extractRecipeFromUrlResult: Result<ImportedRecipeData> = Result.success(ImportedRecipeData(title = "Test Recipe"))
     var generateSummaryResult: String? = null
     var inferDifficultyResult: String? = null
+
+    override suspend fun extractRecipeFromUrl(url: String): Result<ImportedRecipeData> = extractRecipeFromUrlResult
 
     override suspend fun generateSummary(
         title: String,

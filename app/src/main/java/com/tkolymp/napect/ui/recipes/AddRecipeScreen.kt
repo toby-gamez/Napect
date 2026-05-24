@@ -2,6 +2,7 @@ package com.tkolymp.napect.ui.recipes
 
 import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +20,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import android.Manifest
 import android.content.Intent
@@ -48,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import com.tkolymp.napect.R
 import java.io.ByteArrayOutputStream
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.background
 import com.tkolymp.napect.domain.model.Ingredient
 import com.tkolymp.napect.domain.model.IngredientGroup
 import com.tkolymp.napect.domain.model.Recipe
@@ -67,6 +70,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import android.util.Log
@@ -236,18 +240,21 @@ fun AddRecipeScreen(
     var showUrlEntry by remember { mutableStateOf(false) }
     var urlText by remember { mutableStateOf("") }
 
-    if (importVm != null) {
-        val importState by importVm.state.collectAsState()
-        LaunchedEffect(importState) {
-            when (importState) {
-                is UrlImportState.Success -> {
-                    val data = (importState as UrlImportState.Success).data
+    val importState = if (importVm != null) {
+        importVm.state.collectAsState()
+    } else {
+        remember { mutableStateOf(UrlImportState.Idle) }
+    }
+    val currentImportState by importState
+    LaunchedEffect(currentImportState) {
+        when (currentImportState) {
+            is UrlImportState.Success -> {
+                if (importVm != null) {
+                    val data = (currentImportState as UrlImportState.Success).data
                     if (title.isBlank()) title = data.title
                     if (!data.description.isNullOrBlank() && summary.isBlank()) summary = data.description.orEmpty()
                     if (data.ingredientGroups.isNotEmpty()) {
-                        // Rebuild ingredient groups from the imported data, preserving section names
                         val defaultGroup = ingredientGroups.firstOrNull() ?: defaultGroupState().also { ingredientGroups.add(it) }
-                        // If there's only one group (no sub-sections), put it in the default slot
                         if (data.ingredientGroups.size == 1) {
                             defaultGroup.name.value = data.ingredientGroups[0].name
                             defaultGroup.ingredients.clear()
@@ -264,7 +271,6 @@ fun AddRecipeScreen(
                                 }
                             }
                         } else {
-                            // Multiple sections — replace all groups
                             ingredientGroups.clear()
                             data.ingredientGroups.forEach { importedGroup ->
                                 val gs = IngredientGroupState(importedGroup.name)
@@ -291,18 +297,17 @@ fun AddRecipeScreen(
                         data.steps.forEach { steps.add(it) }
                     }
                     if (!data.sourceUrl.isNullOrBlank()) sourceUrl = data.sourceUrl
-                    // Auto-suggest tags from the imported content
                     try {
                         val preview = buildPreviewRecipe(init, title = data.title, summary = data.description, ingredientGroups = ingredientGroups, steps = steps, sourceUrl = data.sourceUrl, servingsBase = servingsBase)
                         onSuggest(preview)
                     } catch (e: Exception) { Timber.w(e) }
                     importVm.resetState()
                 }
-                is UrlImportState.Error -> {
-                    scope.launch { snackbar.showSnackbar(context.getString(R.string.error_import_failed, (importState as UrlImportState.Error).message)) }
-                }
-                else -> {}
             }
+            is UrlImportState.Error -> {
+                scope.launch { snackbar.showSnackbar(context.getString(R.string.error_import_failed, (currentImportState as UrlImportState.Error).message)) }
+            }
+            else -> {}
         }
     }
 
@@ -350,7 +355,8 @@ fun AddRecipeScreen(
 
     // ─── UI ───────────────────────────────────────────────────────────────────
 
-    Column(modifier = modifier.padding(horizontal = 16.dp).verticalScroll(rememberScrollState())) {
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp).verticalScroll(rememberScrollState())) {
 
         // Photo: prefer freshly picked bytes, fall back to existing file path
         val photoDisplayModel: Any? = photoBytes ?: photoPath?.let { java.io.File(it) }
@@ -564,6 +570,8 @@ fun AddRecipeScreen(
             TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel)) }
         }
     }
+
+}
 }
 
 // ─── Helper to build a preview Recipe from current UI state ──────────────────

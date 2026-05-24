@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.ksp)
     // Hilt plugin applied via version catalog
     alias(libs.plugins.hilt)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -87,6 +88,8 @@ dependencies {
     ksp(libs.hiltKsp)
     // Network (URL import) via version catalog
     implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.security.crypto)
     implementation(libs.timber)
     implementation(libs.coil.compose)
     implementation(libs.androidx.work.runtime.ktx)
@@ -100,6 +103,7 @@ dependencies {
     implementation(libs.androidx.paging.compose)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

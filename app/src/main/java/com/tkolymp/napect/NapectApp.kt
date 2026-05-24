@@ -29,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.NavHost
@@ -54,6 +55,7 @@ import com.tkolymp.napect.ui.recipes.RecipeListScreen
 import com.tkolymp.napect.ui.recipes.RecipeDetailScreen
 import com.tkolymp.napect.ui.recipes.MakeScreen
 import com.tkolymp.napect.ui.recipes.UrlImportViewModel
+import com.tkolymp.napect.ui.recipes.UrlImportState
 import coil.compose.AsyncImage
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SearchBar
@@ -63,6 +65,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -134,6 +137,7 @@ fun NapectApp(
     val context = androidx.compose.ui.platform.LocalContext.current
     var fabUrlText by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
+    val importState by importVm.state.collectAsState()
 
     // BackHandler integrates with the native OnBackPressedDispatcher so the system back
     // gesture (edge-swipe) and hardware back button are handled here.
@@ -334,8 +338,8 @@ fun NapectApp(
                     enterTransition = { fadeIn(tween(150)) },
                     exitTransition = { fadeOut(tween(150)) }
                 ) {
-                    val favItems: List<RecipeListItem> = filteredItems.filter { it.isFavorite }
-                    val favSuggestions = searchSuggestions.filter { it.isFavorite }
+                    val favItems = remember(filteredItems) { filteredItems.filter { it.isFavorite } }
+                    val favSuggestions = remember(searchSuggestions) { searchSuggestions.filter { it.isFavorite } }
                     Column(modifier = Modifier.fillMaxSize()) {
                         val favSearchActive = rememberSaveable { mutableStateOf(false) }
                         var favLocalQuery by remember { mutableStateOf(searchQuery) }
@@ -385,9 +389,11 @@ fun NapectApp(
                              }
                          }
                          val allTags by vm.allTags.collectAsState()
-                        val currentTagId by vm.selectedTagId.collectAsState()
-                        val usedTags = allTags.filter { tg -> (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) && favItems.any { r -> r.tags.any { t -> t.id == tg.id } } }
-                        RecipeListScreen(recipes = favItems, modifier = Modifier.weight(1f), onItemClick = { id -> navController.navigate("recipe/$id") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = currentTagId, onTagSelected = { vm.setSelectedTagId(it) }, onDelete = { id -> vm.deleteRecipe(id) })
+                         val currentTagId by vm.selectedTagId.collectAsState()
+                         val usedTags = remember(allTags, favItems) {
+                             allTags.filter { tg -> (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) && favItems.any { r -> r.tags.any { t -> t.id == tg.id } } }
+                         }
+                         RecipeListScreen(recipes = favItems, modifier = Modifier.weight(1f), onItemClick = { id -> navController.navigate("recipe/$id") }, contentPadding = PaddingValues(0.dp), availableTags = usedTags, selectedTagId = currentTagId, onTagSelected = { vm.setSelectedTagId(it) }, onDelete = { id -> vm.deleteRecipe(id) })
                     }
                 }
                 navComposable(AppDestinations.SETTINGS.name,
@@ -396,12 +402,14 @@ fun NapectApp(
                 ) {
                     val allTags by vm.allTags.collectAsState()
                     val error by vm.error.collectAsState()
+                    val tagLoading by vm.tagOperationLoading.collectAsState()
                     SettingsScreen(
                         allTags = allTags,
                         onCreateTag = { name, group -> vm.createUserTag(name, group) },
                         onDeleteTag = { id -> vm.deleteTag(id) },
                         onRestoreDefaults = { vm.restoreDefaultTags() },
-                        error = error
+                        error = error,
+                        tagOperationLoading = tagLoading
                     )
                 }
 
@@ -456,12 +464,17 @@ fun NapectApp(
                 ) { backStackEntry ->
                     val id = backStackEntry.arguments?.getLong("id") ?: 0L
                     val recipe by vm.getRecipeById(id).collectAsState(initial = null)
-                    recipe?.let {
+                    val r = recipe
+                    if (r == null) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
                         val allTags by vm.allTags.collectAsState()
                         val suggested by vm.suggestedTags.collectAsState()
                         val suggestedIds = suggested?.let { (it.confirmed + it.newlyCreated).map { t -> t.id }.toSet() } ?: emptySet()
                         AddRecipeScreen(
-                            initialRecipe = it,
+                            initialRecipe = r,
                             onSave = { updated, tagIds ->
                                 vm.updateRecipeWithTags(updated, tagIds) {
                                     if (updated.id != 0L) {
@@ -493,9 +506,14 @@ fun NapectApp(
                 ) { backStackEntry ->
                     val id = backStackEntry.arguments?.getLong("id") ?: 0L
                     val recipe by vm.getRecipeById(id).collectAsState(initial = null)
-                    recipe?.let {
+                    val r = recipe
+                    if (r == null) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
                         RecipeDetailScreen(
-                            recipe = it,
+                            recipe = r,
                             onClose = { navController.popBackStack() },
                             onToggleFavorite = { idArg, fav -> vm.toggleFavorite(idArg, fav) },
                             onEdit = { rid -> navController.navigate("recipe/$rid/edit") },
@@ -516,8 +534,13 @@ fun NapectApp(
                 ) { backStackEntry ->
                     val id = backStackEntry.arguments?.getLong("id") ?: 0L
                     val recipe by vm.getRecipeById(id).collectAsState(initial = null)
-                    recipe?.let {
-                        MakeScreen(recipe = it, onFinish = { navController.popBackStack() }, onSave = { r -> vm.updateRecipe(r) }, onToggleFavorite = { rid, fav -> vm.toggleFavorite(rid, fav) }, onDelete = { rid -> vm.deleteRecipe(rid) { navController.popBackStack() } })
+                    val r = recipe
+                    if (r == null) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        MakeScreen(recipe = r, onFinish = { navController.popBackStack() }, onSave = { r -> vm.updateRecipe(r) }, onToggleFavorite = { rid, fav -> vm.toggleFavorite(rid, fav) }, onDelete = { rid -> vm.deleteRecipe(rid) { navController.popBackStack() } })
                     }
                 }
             }
@@ -665,6 +688,31 @@ fun NapectApp(
                             modifier = Modifier.size(32.dp)
                         )
                     }
+                }
+            }
+        }
+        // Full-app import loading overlay — covers top bar, nav bar, and all content
+        AnimatedVisibility(
+            visible = importState is UrlImportState.Loading,
+            enter = fadeIn(tween(200)),
+            exit = fadeOut(tween(200))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(color = Color.White)
+                    Text(
+                        text = "Nahrávání",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.White
+                    )
                 }
             }
         }

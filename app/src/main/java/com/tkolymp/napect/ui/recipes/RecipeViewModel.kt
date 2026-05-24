@@ -82,6 +82,9 @@ class RecipeViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _tagOperationLoading = MutableStateFlow(false)
+    val tagOperationLoading: StateFlow<Boolean> = _tagOperationLoading.asStateFlow()
+
     fun createRecipe(recipe: Recipe, onComplete: (Long) -> Unit = {}) {
         viewModelScope.launch {
             try {
@@ -150,11 +153,14 @@ class RecipeViewModel @Inject constructor(
 
     fun createUserTag(name: String, group: TagGroup) {
         viewModelScope.launch {
+            _tagOperationLoading.value = true
             try {
                 repo.createUserTag(name, group)
                 _error.value = null
             } catch (e: Exception) {
                 _error.value = e.message ?: "Failed to create tag"
+            } finally {
+                _tagOperationLoading.value = false
             }
         }
     }
@@ -202,23 +208,29 @@ class RecipeViewModel @Inject constructor(
 
     fun deleteTag(id: Long) {
         viewModelScope.launch {
+            _tagOperationLoading.value = true
             try {
                 repo.deleteTag(id)
                 _error.value = null
             } catch (e: Exception) {
                 _error.value = e.message ?: "Failed to delete tag"
+            } finally {
+                _tagOperationLoading.value = false
             }
         }
     }
 
     fun restoreDefaultTags() {
         viewModelScope.launch {
+            _tagOperationLoading.value = true
             try {
                 val inserted = repo.ensureDefaultTags()
                 repo.migrateEnglishTagsToCzech()
                 _error.value = if (inserted > 0) "Restored $inserted default tags" else "Default tags already present"
             } catch (e: Exception) {
                 _error.value = e.message ?: "Failed to restore default tags"
+            } finally {
+                _tagOperationLoading.value = false
             }
         }
     }

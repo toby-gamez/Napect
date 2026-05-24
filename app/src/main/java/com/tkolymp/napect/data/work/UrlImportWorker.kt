@@ -10,8 +10,8 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import com.tkolymp.napect.data.ai.GeminiNanoService
-import com.tkolymp.napect.data.network.UrlImportService
+import com.tkolymp.napect.data.ai.AiClient
+import com.tkolymp.napect.data.network.ImportedIngredientGroup
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import org.json.JSONArray
@@ -24,8 +24,7 @@ import java.util.concurrent.TimeUnit
 class UrlImportWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
-    private val urlImportService: UrlImportService,
-    private val geminiService: GeminiNanoService,
+    private val ai: AiClient,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
@@ -34,11 +33,7 @@ class UrlImportWorker @AssistedInject constructor(
         )
 
         return try {
-            val result = if (geminiService.isGeminiAvailable()) {
-                geminiService.extractRecipeFromUrl(url)
-            } else {
-                urlImportService.importFromUrl(url)
-            }.getOrThrow()
+            val result = ai.extractRecipeFromUrl(url).getOrThrow()
 
             val json = buildJson(result.title, result.description, result.sourceUrl, result.ingredientGroups, result.steps)
             val dir = File(applicationContext.filesDir, "pending_imports").also { it.mkdirs() }
@@ -57,7 +52,7 @@ class UrlImportWorker @AssistedInject constructor(
         title: String,
         description: String?,
         sourceUrl: String?,
-        groups: List<com.tkolymp.napect.data.network.ImportedIngredientGroup>,
+        groups: List<ImportedIngredientGroup>,
         steps: List<String>,
     ): String {
         val root = JSONObject()

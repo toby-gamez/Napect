@@ -11,7 +11,8 @@ data class ImportedRecipeData(
     val description: String? = null,
     val ingredientGroups: List<ImportedIngredientGroup> = emptyList(),
     val steps: List<String> = emptyList(),
-    val sourceUrl: String? = null
+    val sourceUrl: String? = null,
+    val difficulty: String? = null,
 ) {
     /** Flat list of all ingredients across every group (backward-compat helper). */
     val ingredients: List<String> get() = ingredientGroups.flatMap { it.ingredients }

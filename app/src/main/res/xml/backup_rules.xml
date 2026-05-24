@@ -9,4 +9,7 @@
     <include domain="database" path="napect.db" />
     <include domain="file" path="photos/" />
     <include domain="sharedpref" path="user_prefs.xml" />
+    <!-- Exclude encrypted prefs containing the OpenAI API key — must not leave the device -->
+    <exclude domain="sharedpref" path="napect_secure_prefs.xml" />
+    <exclude domain="sharedpref" path="napect_secure_prefs_fallback.xml" />
 </full-backup-content>

@@ -13,6 +13,11 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_prefs")
 
+interface OpenAiConfig {
+    val openAiModel: Flow<String>
+    val openAiBaseUrl: Flow<String>
+}
+
 enum class ThemeMode { AUTO, LIGHT, DARK }
 
 data class UserPreferences(
@@ -21,11 +26,13 @@ data class UserPreferences(
     val screenshotProtectionEnabled: Boolean = false,
 )
 
-class SettingsRepository(private val context: Context) {
+class SettingsRepository(private val context: Context) : OpenAiConfig {
     private object Keys {
         val THEME = stringPreferencesKey("theme_mode")
         val DEFAULT_SERVINGS = intPreferencesKey("default_servings")
         val SCREENSHOT_PROTECTION = booleanPreferencesKey("screenshot_protection")
+        val OPENAI_MODEL = stringPreferencesKey("openai_model")
+        val OPENAI_BASE_URL = stringPreferencesKey("openai_base_url")
         fun plannedCookKey(id: Long) = stringPreferencesKey("planned_cook_\$id")
     }
 
@@ -50,6 +57,22 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setPlannedCookDate(recipeId: Long, epochMillis: Long) {
         context.dataStore.edit { prefs -> prefs[Keys.plannedCookKey(recipeId)] = epochMillis.toString() }
+    }
+
+    override val openAiModel: kotlinx.coroutines.flow.Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[Keys.OPENAI_MODEL] ?: "gpt-4o-mini"
+    }
+
+    override val openAiBaseUrl: kotlinx.coroutines.flow.Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[Keys.OPENAI_BASE_URL] ?: "https://api.openai.com/v1"
+    }
+
+    suspend fun setOpenAiModel(model: String) {
+        context.dataStore.edit { prefs -> prefs[Keys.OPENAI_MODEL] = model }
+    }
+
+    suspend fun setOpenAiBaseUrl(url: String) {
+        context.dataStore.edit { prefs -> prefs[Keys.OPENAI_BASE_URL] = url }
     }
 
     fun getPlannedCookDateFlow(recipeId: Long) = context.dataStore.data.map { prefs ->

@@ -9,7 +9,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import com.tkolymp.napect.data.network.ImportedRecipeData
 import com.tkolymp.napect.data.network.groupIngredients
 import com.tkolymp.napect.data.network.UrlImportService
-import com.tkolymp.napect.data.ai.GeminiNanoService
 import com.tkolymp.napect.data.ai.AiClient
 import com.tkolymp.napect.domain.model.Ingredient
 import com.tkolymp.napect.domain.model.IngredientGroup
@@ -46,7 +45,6 @@ class UrlImportViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val service: UrlImportService,
     private val repo: RecipeRepository,
-    private val gemini: GeminiNanoService,
     private val ai: AiClient,
     private val workManager: WorkManager,
 ) : ViewModel() {
@@ -148,13 +146,7 @@ class UrlImportViewModel @Inject constructor(
     fun fetchUrl(url: String) {
         viewModelScope.launch {
             _state.value = UrlImportState.Loading
-            // Prefer Gemini if provided and available
-            val res = try {
-                if (gemini != null && gemini.isGeminiAvailable()) gemini.extractRecipeFromUrl(url) else service.importFromUrl(url)
-            } catch (e: Exception) {
-                service.importFromUrl(url)
-            }
-
+            val res = ai.extractRecipeFromUrl(url)
             if (res.isSuccess) {
                 _state.value = UrlImportState.Success(res.getOrThrow())
             } else {
@@ -188,7 +180,7 @@ class UrlImportViewModel @Inject constructor(
             val category = classifyRecipe(data.title, data.ingredients, data.steps)
             val recipe = Recipe(
                 title = data.title,
-                summary = data.description ?: ai?.generateSummary(data.title, allIngredients, steps, data),
+                summary = data.description ?: ai.generateSummary(data.title, allIngredients, steps, data),
                 ingredientGroups = domainGroups,
                 steps = steps,
                 category = category,

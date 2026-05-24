@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Napect</string>
+    <string name="app_name">Napéct</string>
 
     <!-- Bottom navigation -->
     <string name="nav_home">Domů</string>
@@ -127,4 +127,20 @@
     <string name="tag_group_category">Kategorie</string>
     <string name="tag_group_other">Ostatní</string>
     <string name="setting_screenshot_protection">Ochrana snímků obrazovky</string>
+
+    <!-- OpenAI settings -->
+    <string name="section_openai">OpenAI API</string>
+    <string name="openai_key_label">API klíč</string>
+    <string name="openai_key_hint">sk-…</string>
+    <string name="openai_key_saved">Klíč je uložen</string>
+    <string name="openai_key_save">Uložit klíč</string>
+    <string name="openai_key_clear">Vymazat klíč</string>
+    <string name="openai_key_cleared">API klíč byl odstraněn</string>
+    <string name="openai_key_show">Zobrazit klíč</string>
+    <string name="openai_key_hide">Skrýt klíč</string>
+    <string name="openai_model_label">Model</string>
+    <string name="openai_test_connection">Otestovat připojení</string>
+    <string name="openai_test_success">Připojení úspěšné</string>
+    <string name="openai_test_failure">Chyba: %s</string>
+    <string name="openai_privacy_notice">Při importu jsou data receptu odesílána na OpenAI. Bez klíče se použije lokální parser.</string>
 </resources>

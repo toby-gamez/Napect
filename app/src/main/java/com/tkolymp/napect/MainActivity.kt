@@ -11,8 +11,6 @@ import androidx.compose.runtime.SideEffect
 import com.tkolymp.napect.data.local.DatabaseProvider
 import com.tkolymp.napect.data.network.UrlImportService
 import com.tkolymp.napect.ui.recipes.UrlImportViewModel
-import com.tkolymp.napect.data.ai.GeminiNanoService
-import com.tkolymp.napect.data.ai.AiClient
 import com.tkolymp.napect.ui.theme.NapectTheme
 import com.tkolymp.napect.data.local.SettingsRepository
 import com.tkolymp.napect.data.local.ThemeMode
@@ -32,8 +30,6 @@ class MainActivity : ComponentActivity() {
     private val importVm: UrlImportViewModel by viewModels()
 
     @Inject lateinit var importService: UrlImportService
-    @Inject lateinit var geminiService: GeminiNanoService
-    @Inject lateinit var aiClient: AiClient
     @Inject lateinit var settingsRepo: SettingsRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {

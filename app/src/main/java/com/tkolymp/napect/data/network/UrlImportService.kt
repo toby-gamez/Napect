@@ -12,8 +12,22 @@ import java.util.regex.Pattern
  * Minimal URL importer that fetches an HTML page and attempts to extract a Schema.org Recipe
  * from JSON-LD script tags. Falls back to the page title if nothing found.
  */
-class UrlImportService(private val client: OkHttpClient = OkHttpClient()) {
-    suspend fun importFromUrl(url: String): Result<ImportedRecipeData> = withContext(Dispatchers.IO) {
+open class UrlImportService(private val client: OkHttpClient = OkHttpClient()) {
+    open suspend fun fetchHtml(url: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder().url(url).get()
+                .header("User-Agent", "Napect/1.0 (Android; Recipe Manager)")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext Result.failure(Exception("HTTP ${resp.code}"))
+                Result.success(resp.body?.string().orEmpty())
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    open suspend fun importFromUrl(url: String): Result<ImportedRecipeData> = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder().url(url).get()
                 .header("User-Agent", "Napect/1.0 (Android; Recipe Manager)")
