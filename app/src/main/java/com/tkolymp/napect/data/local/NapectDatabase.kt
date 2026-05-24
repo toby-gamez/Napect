@@ -25,7 +25,8 @@ import com.tkolymp.napect.data.local.dao.TagDao
     // version 6: fix tags index naming (idx_tags_name → index_tags_name)
     // version 7: add photo_path column for file-based photo storage
     // version 8: add FTS4 full-text search (recipe_fts)
-    version = 8,
+    // version 9: drop custom FTS triggers from v8 migration (conflict with Room auto-generated ones)
+    version = 9,
     exportSchema = true
 )
 abstract class NapectDatabase : RoomDatabase() {

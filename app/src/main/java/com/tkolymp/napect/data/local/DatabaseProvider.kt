@@ -132,29 +132,28 @@ object DatabaseProvider {
     }
 
     // Migration from v7 -> v8: add FTS4 virtual table for full-text search.
+    // NOTE: Do NOT create manual triggers — Room's @Fts4(contentEntity = ...)
+    // auto-generates them and having both causes duplicate inserts on UPDATE.
     val migration7to8 = object : Migration(7, 8) {
         override fun migrate(database: SupportSQLiteDatabase) {
             database.execSQL(
                 "CREATE VIRTUAL TABLE IF NOT EXISTS `recipe_fts` USING fts4(" +
                 "content=`recipes`, title, summary)"
             )
-            database.execSQL(
-                "CREATE TRIGGER IF NOT EXISTS `recipe_fts_ai` AFTER INSERT ON `recipes` BEGIN " +
-                "INSERT INTO `recipe_fts`(docid, title, summary) VALUES (new.`id`, new.`title`, new.`summary`); END"
-            )
-            database.execSQL(
-                "CREATE TRIGGER IF NOT EXISTS `recipe_fts_ad` AFTER DELETE ON `recipes` BEGIN " +
-                "INSERT INTO `recipe_fts`(`recipe_fts`, `title`, `summary`) VALUES('delete', old.`id`, old.`id`); END"
-            )
-            database.execSQL(
-                "CREATE TRIGGER IF NOT EXISTS `recipe_fts_au` AFTER UPDATE ON `recipes` BEGIN " +
-                "INSERT INTO `recipe_fts`(`recipe_fts`, `title`, `summary`) VALUES('delete', old.`id`, old.`id`); " +
-                "INSERT INTO `recipe_fts`(docid, title, summary) VALUES (new.`id`, new.`title`, new.`summary`); END"
-            )
             // Populate existing data
             database.execSQL(
                 "INSERT INTO `recipe_fts`(docid, title, summary) SELECT `id`, `title`, `summary` FROM `recipes`"
             )
+        }
+    }
+
+    // Migration from v8 -> v9: drop custom FTS triggers that conflict with
+    // Room's auto-generated ones (created by a bug in migration7to8).
+    val migration8to9 = object : Migration(8, 9) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("DROP TRIGGER IF EXISTS `recipe_fts_ai`")
+            database.execSQL("DROP TRIGGER IF EXISTS `recipe_fts_ad`")
+            database.execSQL("DROP TRIGGER IF EXISTS `recipe_fts_au`")
         }
     }
 
@@ -184,7 +183,7 @@ object DatabaseProvider {
                 NapectDatabase::class.java,
                 "napect.db"
             )
-                .addMigrations(migration2to3, migration3to4, migration4to5, migration5to6, migration6to7, migration7to8)
+                .addMigrations(migration2to3, migration3to4, migration4to5, migration5to6, migration6to7, migration7to8, migration8to9)
                 .addCallback(callback)
                 .build()
             INSTANCE = instance
