@@ -10,4 +10,5 @@ data class RecipeListItemEntity(
     @ColumnInfo(name = "is_favorite") val isFavorite: Boolean = false,
     val category: String? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long = 0L,
+    @ColumnInfo(name = "time_minutes") val timeMinutes: Int? = null,
 )

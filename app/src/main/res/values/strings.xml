@@ -71,6 +71,8 @@
     <string name="nutrition_nutriscore">Nutri-Score</string>
     <string name="nutrition_unit_kcal">kcal</string>
     <string name="nutrition_unit_g">g</string>
+    <string name="label_time_minutes">Čas (min)</string>
+    <string name="time_label">⏱ %s</string>
     <string name="base_servings_decrease">Snížit základní porce</string>
     <string name="base_servings_increase">Zvýšit základní porce</string>
     <string name="base_servings_label">Základní porce: %d</string>

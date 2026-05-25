@@ -9,6 +9,7 @@ import kotlinx.serialization.json.put
 object RecipePrompt {
     private const val SYSTEM_EXTRACTION = """Jsi extraktor receptů. Z přiloženého HTML/textu extrahuj recept v češtině jako JSON podle daného schématu.
 Pokud chybí pole, vrať prázdné pole nebo null.
+timeMinutes = celkový čas receptu v minutách (celé číslo nebo null). Hledej v JSON-LD polích totalTime, nebo sečti prepTime+cookTime (ISO 8601: PT30M=30, PT1H=60, PT1H30M=90), případně v textu stránky. Nevymýšlej.
 Ingredience seskup do logických sekcí (těsto, krém, ozdoba…). Každou ingredienci rozlož na amount (číslo nebo null), unit (jednotka nebo null), name (název). Krok = jedna instrukce.
 Náročnost odhadni z počtu kroků a ingrediencí: do 5 kroků a 6 ingrediencí = Jednoduché, nad 8 kroků nebo 12 ingrediencí = Náročné, jinak Střední.
 Nutriční hodnoty: pokud jsou v HTML uvedeny nutriční hodnoty (kalorie/energie, tuky, sacharidy, bílkoviny, Nutri-Score), extrahuj je přesně jak jsou uvedeny — mohou být celkové (za celý recept) nebo na porci, obojí je v pořádku.
@@ -26,6 +27,7 @@ Odpovídej POUZE platným JSON podle schématu. Žádný markdown, žádné blok
                 put("additionalProperties", false)
                 put("required", buildJsonArray {
                     add(JsonPrimitive("title"))
+                    add(JsonPrimitive("timeMinutes"))
                     add(JsonPrimitive("description"))
                     add(JsonPrimitive("ingredientGroups"))
                     add(JsonPrimitive("steps"))
@@ -38,6 +40,12 @@ Odpovídej POUZE platným JSON podle schématu. Žádný markdown, žádné blok
                 })
                 put("properties", buildJsonObject {
                     put("title", buildJsonObject { put("type", "string") })
+                    put("timeMinutes", buildJsonObject {
+                        put("anyOf", buildJsonArray {
+                            add(buildJsonObject { put("type", "integer") })
+                            add(buildJsonObject { put("type", "null") })
+                        })
+                    })
                     put("description", buildJsonObject {
                         put("anyOf", buildJsonArray {
                             add(buildJsonObject { put("type", "string") })

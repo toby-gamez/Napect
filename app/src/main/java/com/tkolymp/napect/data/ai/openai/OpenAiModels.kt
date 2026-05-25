@@ -68,6 +68,7 @@ data class ExtractedRecipe(
     @SerialName("carbsG") val carbsG: Double? = null,
     @SerialName("proteinsG") val proteinsG: Double? = null,
     @SerialName("nutriScore") val nutriScore: String? = null,
+    @SerialName("timeMinutes") val timeMinutes: Int? = null,
 )
 
 fun ExtractedRecipe.toImportedRecipeData(sourceUrl: String? = null) = ImportedRecipeData(
@@ -88,4 +89,5 @@ fun ExtractedRecipe.toImportedRecipeData(sourceUrl: String? = null) = ImportedRe
     carbsG = carbsG,
     proteinsG = proteinsG,
     nutriScore = nutriScore,
+    timeMinutes = timeMinutes,
 )

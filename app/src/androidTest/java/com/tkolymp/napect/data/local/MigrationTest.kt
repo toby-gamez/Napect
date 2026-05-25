@@ -139,6 +139,30 @@ class MigrationTest {
         assertTrue("Expected default tags", queryInt("SELECT COUNT(*) FROM tags") > 0)
     }
 
+    @Test
+    fun migrate10to11_addsPrepCookCols() {
+        createDbAtVersion(10, *SQL_V10)
+        insertSql("INSERT INTO recipes (title, is_favorite, servings_base, created_at, updated_at) VALUES ('Test', 0, 1, 1, 1)")
+        runMigrations(DatabaseProvider.migration10to11)
+        exec("UPDATE recipes SET prep_time_minutes = 20, cook_time_minutes = 40 WHERE id = 1")
+        val c = query("SELECT prep_time_minutes, cook_time_minutes FROM recipes WHERE id = 1")
+        c.moveToFirst()
+        assertEquals(20, c.getInt(0))
+        assertEquals(40, c.getInt(1))
+        c.close()
+    }
+
+    @Test
+    fun migrate11to12_collapsesTimeCol() {
+        createDbAtVersion(11, *SQL_V11)
+        insertSql("INSERT INTO recipes (title, is_favorite, servings_base, created_at, updated_at, prep_time_minutes, cook_time_minutes) VALUES ('Test', 0, 1, 1, 1, 20, 40)")
+        runMigrations(DatabaseProvider.migration11to12)
+        val c = query("SELECT time_minutes FROM recipes WHERE id = 1")
+        c.moveToFirst()
+        assertEquals(60, c.getInt(0))
+        c.close()
+    }
+
     companion object {
         private val ALL_MIGRATIONS = arrayOf(
             DatabaseProvider.migration2to3,
@@ -146,7 +170,10 @@ class MigrationTest {
             DatabaseProvider.migration4to5,
             DatabaseProvider.migration5to6,
             DatabaseProvider.migration6to7,
-            DatabaseProvider.migration7to8
+            DatabaseProvider.migration7to8,
+            DatabaseProvider.migration8to9,
+            DatabaseProvider.migration9to10,
+            DatabaseProvider.migration10to11,
         )
 
         private val SQL_V2 = arrayOf(
@@ -301,6 +328,55 @@ class MigrationTest {
             )""",
             "CREATE INDEX IF NOT EXISTS `index_recipe_tags_recipe_id` ON `recipe_tags`(`recipe_id`)",
             "CREATE INDEX IF NOT EXISTS `index_recipe_tags_tag_id` ON `recipe_tags`(`tag_id`)"
+        )
+
+        private val SQL_V10 = arrayOf(
+            """CREATE TABLE IF NOT EXISTS `recipes` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `title` TEXT NOT NULL, `summary` TEXT, `source_url` TEXT, `source_note` TEXT,
+                `is_favorite` INTEGER NOT NULL, `category` TEXT, `photo` BLOB,
+                `photo_path` TEXT, `servings_base` INTEGER NOT NULL,
+                `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL,
+                `calories_kcal` REAL, `fat_g` REAL, `carbs_g` REAL,
+                `proteins_g` REAL, `nutri_score` TEXT
+            )""",
+            """CREATE TABLE IF NOT EXISTS `ingredient_groups` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `recipe_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `sort_order` INTEGER NOT NULL,
+                FOREIGN KEY(`recipe_id`) REFERENCES `recipes`(`id`) ON DELETE CASCADE
+            )""",
+            "CREATE INDEX IF NOT EXISTS `index_ingredient_groups_recipe_id` ON `ingredient_groups`(`recipe_id`)",
+            """CREATE TABLE IF NOT EXISTS `ingredients` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `group_id` INTEGER NOT NULL, `amount` REAL NOT NULL, `unit` TEXT,
+                `name` TEXT NOT NULL, `sort_order` INTEGER NOT NULL,
+                FOREIGN KEY(`group_id`) REFERENCES `ingredient_groups`(`id`) ON DELETE CASCADE
+            )""",
+            "CREATE INDEX IF NOT EXISTS `index_ingredients_group_id` ON `ingredients`(`group_id`)",
+            """CREATE TABLE IF NOT EXISTS `steps` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `recipe_id` INTEGER NOT NULL, `step_number` INTEGER NOT NULL, `instruction` TEXT NOT NULL,
+                FOREIGN KEY(`recipe_id`) REFERENCES `recipes`(`id`) ON DELETE CASCADE
+            )""",
+            "CREATE INDEX IF NOT EXISTS `index_steps_recipe_id` ON `steps`(`recipe_id`)",
+            """CREATE TABLE IF NOT EXISTS `tags` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `name` TEXT NOT NULL, `group_name` TEXT NOT NULL,
+                `is_ai_generated` INTEGER NOT NULL, `is_user_created` INTEGER NOT NULL
+            )""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_tags_name` ON `tags`(`name` COLLATE NOCASE)",
+            """CREATE TABLE IF NOT EXISTS `recipe_tags` (
+                `recipe_id` INTEGER NOT NULL, `tag_id` INTEGER NOT NULL,
+                PRIMARY KEY(`recipe_id`, `tag_id`)
+            )""",
+            "CREATE INDEX IF NOT EXISTS `index_recipe_tags_recipe_id` ON `recipe_tags`(`recipe_id`)",
+            "CREATE INDEX IF NOT EXISTS `index_recipe_tags_tag_id` ON `recipe_tags`(`tag_id`)",
+            "CREATE VIRTUAL TABLE IF NOT EXISTS `recipe_fts` USING fts4(content=`recipes`, title, summary)"
+        )
+
+        private val SQL_V11 = SQL_V10 + arrayOf(
+            "ALTER TABLE `recipes` ADD COLUMN `prep_time_minutes` INTEGER DEFAULT NULL",
+            "ALTER TABLE `recipes` ADD COLUMN `cook_time_minutes` INTEGER DEFAULT NULL"
         )
 
         private val SQL_V5 = arrayOf(

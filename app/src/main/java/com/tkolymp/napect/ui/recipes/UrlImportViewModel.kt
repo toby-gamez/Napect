@@ -192,7 +192,8 @@ class UrlImportViewModel @Inject constructor(
                 ingredientGroups = domainGroups,
                 steps = steps,
                 category = category,
-                sourceUrl = data.sourceUrl
+                sourceUrl = data.sourceUrl,
+                timeMinutes = data.timeMinutes,
             )
             val suggestion = try { repo.suggestTagsForRecipe(recipe) } catch (e: Exception) { null }
             val tagIds = suggestion?.let { (it.confirmed + it.newlyCreated).map { t -> t.id } } ?: emptyList()
@@ -290,6 +291,7 @@ class UrlImportViewModel @Inject constructor(
                 carbsG = if (json.isNull("carbsG")) null else json.optDouble("carbsG").takeIf { !it.isNaN() },
                 proteinsG = if (json.isNull("proteinsG")) null else json.optDouble("proteinsG").takeIf { !it.isNaN() },
                 nutriScore = json.optString("nutriScore").ifBlank { null },
+                timeMinutes = if (json.isNull("timeMinutes")) null else json.optInt("timeMinutes").takeIf { it > 0 },
             )
         } catch (e: Exception) {
             Timber.w(e, "Failed to deserialize import result from %s", path)

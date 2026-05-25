@@ -29,20 +29,20 @@ interface RecipeDao {
     // ─── Lightweight list queries (no BLOB, no ingredient/step JOINs) ───────
 
     @Transaction
-    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes ORDER BY created_at DESC")
+    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at, time_minutes FROM recipes ORDER BY created_at DESC")
     fun getAllRecipeListItems(): Flow<List<RecipeListItemWithTags>>
 
     @Transaction
-    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes WHERE id IN (SELECT recipe_id FROM recipe_tags WHERE tag_id = :tagId) ORDER BY created_at DESC")
+    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at, time_minutes FROM recipes WHERE id IN (SELECT recipe_id FROM recipe_tags WHERE tag_id = :tagId) ORDER BY created_at DESC")
     fun getRecipeListItemsByTag(tagId: Long): Flow<List<RecipeListItemWithTags>>
 
     @Transaction
-    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes WHERE id IN (SELECT docid FROM recipe_fts WHERE recipe_fts MATCH :query) ORDER BY created_at DESC")
+    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at, time_minutes FROM recipes WHERE id IN (SELECT docid FROM recipe_fts WHERE recipe_fts MATCH :query) ORDER BY created_at DESC")
     fun searchRecipeListItems(query: String): Flow<List<RecipeListItemWithTags>>
 
     @Transaction
     @Query("""
-        SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes
+        SELECT id, title, summary, photo_path, is_favorite, category, created_at, time_minutes FROM recipes
         WHERE id IN (SELECT recipe_id FROM recipe_tags WHERE tag_id = :tagId)
         AND id IN (SELECT docid FROM recipe_fts WHERE recipe_fts MATCH :query)
         ORDER BY created_at DESC
@@ -52,20 +52,20 @@ interface RecipeDao {
     // ─── Paging queries ────────────────────────────────────────────────────
 
     @Transaction
-    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
+    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at, time_minutes FROM recipes ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
     suspend fun getAllRecipeListItemsPaged(limit: Int, offset: Int): List<RecipeListItemWithTags>
 
     @Transaction
-    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes WHERE id IN (SELECT recipe_id FROM recipe_tags WHERE tag_id = :tagId) ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
+    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at, time_minutes FROM recipes WHERE id IN (SELECT recipe_id FROM recipe_tags WHERE tag_id = :tagId) ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
     suspend fun getRecipeListItemsByTagPaged(tagId: Long, limit: Int, offset: Int): List<RecipeListItemWithTags>
 
     @Transaction
-    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes WHERE id IN (SELECT docid FROM recipe_fts WHERE recipe_fts MATCH :query) ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
+    @Query("SELECT id, title, summary, photo_path, is_favorite, category, created_at, time_minutes FROM recipes WHERE id IN (SELECT docid FROM recipe_fts WHERE recipe_fts MATCH :query) ORDER BY created_at DESC LIMIT :limit OFFSET :offset")
     suspend fun searchRecipeListItemsPaged(query: String, limit: Int, offset: Int): List<RecipeListItemWithTags>
 
     @Transaction
     @Query("""
-        SELECT id, title, summary, photo_path, is_favorite, category, created_at FROM recipes
+        SELECT id, title, summary, photo_path, is_favorite, category, created_at, time_minutes FROM recipes
         WHERE id IN (SELECT recipe_id FROM recipe_tags WHERE tag_id = :tagId)
         AND id IN (SELECT docid FROM recipe_fts WHERE recipe_fts MATCH :query)
         ORDER BY created_at DESC LIMIT :limit OFFSET :offset

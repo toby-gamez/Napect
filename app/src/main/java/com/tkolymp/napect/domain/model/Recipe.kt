@@ -24,6 +24,7 @@ data class Recipe(
     val carbsG: Double? = null,
     val proteinsG: Double? = null,
     val nutriScore: String? = null,
+    val timeMinutes: Int? = null,
 ) {
     /** Flat list of all ingredients across all groups, preserving group order. */
     val allIngredients: List<Ingredient> get() = ingredientGroups.flatMap { it.ingredients }

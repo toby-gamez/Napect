@@ -11,4 +11,5 @@ data class RecipeListItem(
     val category: Category = Category.UNKNOWN,
     val tags: List<Tag> = emptyList(),
     val createdAt: Instant = Instant.now(),
+    val timeMinutes: Int? = null,
 )

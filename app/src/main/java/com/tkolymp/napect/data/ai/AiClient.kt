@@ -38,17 +38,23 @@ class DefaultAiClient(
                         urlImportService.importFromUrl(url)
                     } else {
                         val data = aiResult.getOrThrow()
+                        var patched = data
                         if (data.caloriesKcal == null && data.fatG == null && data.carbsG == null && data.proteinsG == null) {
                             val jsonLdNutrition = urlImportService.parseNutritionFromHtml(html)
                             if (jsonLdNutrition != null) {
-                                Result.success(data.copy(
+                                patched = patched.copy(
                                     caloriesKcal = jsonLdNutrition.caloriesKcal,
                                     fatG = jsonLdNutrition.fatG,
                                     carbsG = jsonLdNutrition.carbsG,
                                     proteinsG = jsonLdNutrition.proteinsG,
-                                ))
-                            } else aiResult
-                        } else aiResult
+                                )
+                            }
+                        }
+                        if (data.timeMinutes == null) {
+                            val jsonLdTime = urlImportService.parseTimeFromHtml(html)
+                            if (jsonLdTime != null) patched = patched.copy(timeMinutes = jsonLdTime)
+                        }
+                        if (patched !== data) Result.success(patched) else aiResult
                     }
                 }
             }.getOrElse { e ->

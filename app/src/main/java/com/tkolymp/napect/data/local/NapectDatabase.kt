@@ -27,7 +27,9 @@ import com.tkolymp.napect.data.local.dao.TagDao
     // version 8: add FTS4 full-text search (recipe_fts)
     // version 9: drop custom FTS triggers from v8 migration (conflict with Room auto-generated ones)
     // version 10: add nutrition columns (calories_kcal, fat_g, carbs_g, proteins_g, nutri_score)
-    version = 10,
+    // version 11: add time columns (prep_time_minutes, cook_time_minutes) — superseded by v12
+    // version 12: collapse prep/cook time into a single time_minutes column
+    version = 12,
     exportSchema = true
 )
 abstract class NapectDatabase : RoomDatabase() {

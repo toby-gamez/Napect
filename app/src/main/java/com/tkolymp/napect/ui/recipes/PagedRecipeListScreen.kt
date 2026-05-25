@@ -133,6 +133,15 @@ fun PagedRecipeListScreen(
 
                             r.summary?.let { Text(text = it, modifier = Modifier.padding(top = 4.dp)) }
 
+                            r.timeMinutes?.let { t ->
+                                Text(
+                                    text = "⏱ ${formatTimeMinutes(t)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+
                             if (r.tags.isNotEmpty()) {
                                 Spacer(modifier = Modifier.size(8.dp))
                                 FlowRow(modifier = Modifier.fillMaxWidth()) {

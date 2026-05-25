@@ -127,6 +127,8 @@ fun AddRecipeScreen(
     var summary by remember(init) { mutableStateOf(init?.summary ?: "") }
     var servingsBase by remember(init) { mutableStateOf(init?.servingsBase ?: 4) }
 
+    var timeMinutes by remember(init) { mutableStateOf(init?.timeMinutes?.toString() ?: "") }
+
     // Nutrition state (values for the whole recipe)
     var caloriesKcal by remember(init) { mutableStateOf(init?.caloriesKcal?.let { formatNutritionValue(it) } ?: "") }
     var fatG by remember(init) { mutableStateOf(init?.fatG?.let { formatNutritionValue(it) } ?: "") }
@@ -290,6 +292,7 @@ fun AddRecipeScreen(
                     if (data.carbsG != null && carbsG.isBlank()) carbsG = formatNutritionValue(data.carbsG)
                     if (data.proteinsG != null && proteinsG.isBlank()) proteinsG = formatNutritionValue(data.proteinsG)
                     if (data.nutriScore != null && nutriScore == null) nutriScore = data.nutriScore
+                    if (data.timeMinutes != null && timeMinutes.isBlank()) timeMinutes = data.timeMinutes.toString()
                     try {
                         val preview = buildPreviewRecipe(init, title = data.title, summary = data.description, ingredientGroups = ingredientGroups, steps = steps, sourceUrl = data.sourceUrl, servingsBase = servingsBase)
                         onSuggest(preview)
@@ -409,6 +412,31 @@ fun AddRecipeScreen(
              Text(stringResource(R.string.base_servings_label, servingsBase), modifier = Modifier.padding(horizontal = 8.dp))
              IconButton(onClick = { servingsBase++ }, modifier = Modifier.size(40.dp)) {
                  Icon(imageVector = Icons.Filled.Add, contentDescription = stringResource(R.string.base_servings_increase))
+            }
+        }
+
+        // ── Time field ───────────────────────────────────────────────────────
+
+        Spacer(modifier = Modifier.size(8.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = timeMinutes,
+                onValueChange = { timeMinutes = it.filter { c -> c.isDigit() } },
+                label = { Text(stringResource(R.string.label_time_minutes)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                modifier = Modifier.weight(1f)
+            )
+            timeMinutes.toIntOrNull()?.let { t ->
+                Text(
+                    text = formatTimeMinutes(t),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
@@ -626,6 +654,7 @@ fun AddRecipeScreen(
                             carbsG = carbsG.toDoubleOrNull(),
                             proteinsG = proteinsG.toDoubleOrNull(),
                             nutriScore = nutriScore,
+                            timeMinutes = timeMinutes.toIntOrNull(),
                         ),
                         finalTagIds
                     )
@@ -668,6 +697,14 @@ private fun fillIngredients(
 }
 
 // ─── Nutrition helpers ────────────────────────────────────────────────────────
+
+internal fun formatTimeMinutes(minutes: Int): String =
+    if (minutes < 60) "$minutes min"
+    else {
+        val h = minutes / 60
+        val m = minutes % 60
+        if (m == 0) "${h}h" else "${h}h ${m}min"
+    }
 
 private fun formatNutritionValue(d: Double): String =
     if (d == kotlin.math.floor(d)) d.toInt().toString() else d.toString()

@@ -37,7 +37,7 @@ open class UrlImportService(private val client: OkHttpClient = OkHttpClient()) {
                 val body = resp.body?.string().orEmpty()
 
                 // find <script type="application/ld+json"> blocks
-                val jsonLdPattern = Pattern.compile("<script[^>]*type=\\\"application/ld\\+json\\\"[^>]*>(.*?)</script>", Pattern.DOTALL or Pattern.CASE_INSENSITIVE)
+                val jsonLdPattern = Pattern.compile("<script[^>]*type=[\"']application/ld\\+json[\"'][^>]*>(.*?)</script>", Pattern.DOTALL or Pattern.CASE_INSENSITIVE)
                 val matcher = jsonLdPattern.matcher(body)
 
                 while (matcher.find()) {
@@ -68,7 +68,7 @@ open class UrlImportService(private val client: OkHttpClient = OkHttpClient()) {
      * Used by [DefaultAiClient] to supplement AI results when nutrition fields come back null.
      */
     fun parseNutritionFromHtml(html: String): ImportedRecipeData? {
-        val jsonLdPattern = Pattern.compile("<script[^>]*type=\\\"application/ld\\+json\\\"[^>]*>(.*?)</script>", Pattern.DOTALL or Pattern.CASE_INSENSITIVE)
+        val jsonLdPattern = Pattern.compile("<script[^>]*type=[\"']application/ld\\+json[\"'][^>]*>(.*?)</script>", Pattern.DOTALL or Pattern.CASE_INSENSITIVE)
         val matcher = jsonLdPattern.matcher(html)
         while (matcher.find()) {
             val jsonText = matcher.group(1)?.trim() ?: continue
@@ -85,6 +85,86 @@ open class UrlImportService(private val client: OkHttpClient = OkHttpClient()) {
             } catch (_: Exception) {}
         }
         return null
+    }
+
+    /**
+     * Parses total recipe time (in minutes) from JSON-LD blocks in the fetched HTML,
+     * falling back to plain-text HTML patterns if JSON-LD yields nothing.
+     * ISO 8601 duration format: PT30M=30, PT1H=60, PT1H30M=90.
+     */
+    fun parseTimeFromHtml(html: String): Int? {
+        val jsonLdPattern = Pattern.compile(
+            "<script[^>]*type=[\"']application/ld\\+json[\"'][^>]*>(.*?)</script>",
+            Pattern.DOTALL or Pattern.CASE_INSENSITIVE
+        )
+        val matcher = jsonLdPattern.matcher(html)
+        while (matcher.find()) {
+            val jsonText = matcher.group(1)?.trim() ?: continue
+            try {
+                val root = if (jsonText.startsWith("[")) JSONArray(jsonText) else JSONObject(jsonText)
+                val minutes = findTimeInJsonLd(root)
+                if (minutes != null && minutes > 0) return minutes
+            } catch (_: Exception) {}
+        }
+        return parseTimeFromHtmlText(html)
+    }
+
+    private fun parseTimeFromHtmlText(html: String): Int? {
+        // Strip tags to get visible text, then search for time patterns.
+        val text = html.replace(Regex("<[^>]+>"), " ").replace(Regex("\\s+"), " ")
+        // "1 hod 30 min", "1 h 30 min", "1hodina 30minut", etc.
+        val hoursAndMinutes = Regex(
+            """(\d+)\s*(?:hod(?:in[ay]?)?|h(?:our)?s?)\s*(\d+)\s*(?:min(?:ut[ay]?)?|m)\b""",
+            RegexOption.IGNORE_CASE
+        ).find(text)
+        if (hoursAndMinutes != null) {
+            val h = hoursAndMinutes.groupValues[1].toIntOrNull() ?: 0
+            val m = hoursAndMinutes.groupValues[2].toIntOrNull() ?: 0
+            if (h * 60 + m > 0) return h * 60 + m
+        }
+        // "90 min", "45 minut", "30 minutes"
+        val minutesOnly = Regex(
+            """(\d+)\s*(?:min(?:ut[ay]?)?|minutes?)\b""",
+            RegexOption.IGNORE_CASE
+        ).find(text)
+        if (minutesOnly != null) {
+            val m = minutesOnly.groupValues[1].toIntOrNull() ?: 0
+            if (m > 0) return m
+        }
+        // "2 hodiny", "1 hodina" (whole hours, no minutes part)
+        val hoursOnly = Regex(
+            """(\d+)\s*(?:hod(?:in[ay]?)?|hours?)\b""",
+            RegexOption.IGNORE_CASE
+        ).find(text)
+        if (hoursOnly != null) {
+            val h = hoursOnly.groupValues[1].toIntOrNull() ?: 0
+            if (h > 0) return h * 60
+        }
+        return null
+    }
+
+    private fun findTimeInJsonLd(root: Any): Int? {
+        if (root is JSONArray) {
+            for (i in 0 until root.length()) findTimeInJsonLd(root.get(i))?.let { return it }
+        } else if (root is JSONObject) {
+            val type = root.opt("@type")?.toString() ?: ""
+            if (type.contains("Recipe", ignoreCase = true)) {
+                val total = root.optString("totalTime").ifBlank { null }?.let { parseIso8601Duration(it) }
+                if (total != null && total > 0) return total
+                val prep = root.optString("prepTime").ifBlank { null }?.let { parseIso8601Duration(it) } ?: 0
+                val cook = root.optString("cookTime").ifBlank { null }?.let { parseIso8601Duration(it) } ?: 0
+                if (prep + cook > 0) return prep + cook
+            }
+            root.keys().forEach { k -> findTimeInJsonLd(root.get(k))?.let { return it } }
+        }
+        return null
+    }
+
+    private fun parseIso8601Duration(iso: String): Int? {
+        val m = Regex("""PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?""", RegexOption.IGNORE_CASE).find(iso) ?: return null
+        val hours = m.groupValues[1].toIntOrNull() ?: 0
+        val minutes = m.groupValues[2].toIntOrNull() ?: 0
+        return hours * 60 + minutes
     }
 
     private fun findNutrition(root: Any): JSONObject? {

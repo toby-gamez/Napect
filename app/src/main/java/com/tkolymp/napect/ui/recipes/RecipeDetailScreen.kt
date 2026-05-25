@@ -143,6 +143,15 @@ fun RecipeDetailScreen(
                 }
             }
 
+            // Time chip
+            recipe.timeMinutes?.let { t ->
+                Spacer(modifier = Modifier.size(8.dp))
+                AssistChip(
+                    onClick = {},
+                    label = { Text("⏱ ${formatTimeMinutes(t)}") }
+                )
+            }
+
             // Servings scaler
             Spacer(modifier = Modifier.size(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {

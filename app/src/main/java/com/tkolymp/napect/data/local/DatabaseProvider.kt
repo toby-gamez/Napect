@@ -168,6 +168,62 @@ object DatabaseProvider {
         }
     }
 
+    // Migration from v10 -> v11: add prep/cook time columns to recipes.
+    val migration10to11 = object : Migration(10, 11) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE `recipes` ADD COLUMN `prep_time_minutes` INTEGER DEFAULT NULL")
+            database.execSQL("ALTER TABLE `recipes` ADD COLUMN `cook_time_minutes` INTEGER DEFAULT NULL")
+        }
+    }
+
+    // Migration from v11 -> v12: replace prep_time_minutes + cook_time_minutes with a single
+    // time_minutes column. SQLite requires a table recreation to remove columns.
+    // FTS triggers that reference `recipes` are dropped with the old table and recreated here.
+    val migration11to12 = object : Migration(11, 12) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS `recipes_new` (
+                  `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                  `title` TEXT NOT NULL,
+                  `summary` TEXT,
+                  `source_url` TEXT,
+                  `source_note` TEXT,
+                  `is_favorite` INTEGER NOT NULL,
+                  `category` TEXT,
+                  `photo` BLOB,
+                  `photo_path` TEXT,
+                  `servings_base` INTEGER NOT NULL,
+                  `created_at` INTEGER NOT NULL,
+                  `updated_at` INTEGER NOT NULL,
+                  `calories_kcal` REAL,
+                  `fat_g` REAL,
+                  `carbs_g` REAL,
+                  `proteins_g` REAL,
+                  `nutri_score` TEXT,
+                  `time_minutes` INTEGER
+                )
+            """.trimIndent())
+            database.execSQL("""
+                INSERT INTO `recipes_new`
+                SELECT `id`, `title`, `summary`, `source_url`, `source_note`, `is_favorite`,
+                       `category`, `photo`, `photo_path`, `servings_base`, `created_at`,
+                       `updated_at`, `calories_kcal`, `fat_g`, `carbs_g`, `proteins_g`,
+                       `nutri_score`,
+                       CASE WHEN `prep_time_minutes` IS NULL AND `cook_time_minutes` IS NULL THEN NULL
+                            ELSE COALESCE(`prep_time_minutes`, 0) + COALESCE(`cook_time_minutes`, 0)
+                       END
+                FROM `recipes`
+            """.trimIndent())
+            database.execSQL("DROP TABLE `recipes`")
+            database.execSQL("ALTER TABLE `recipes_new` RENAME TO `recipes`")
+            // Restore Room-generated FTS triggers that were dropped with the old table
+            database.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_recipe_fts_BEFORE_UPDATE` BEFORE UPDATE ON `recipes` BEGIN DELETE FROM `recipe_fts` WHERE `docid`=OLD.`rowid`; END")
+            database.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_recipe_fts_BEFORE_DELETE` BEFORE DELETE ON `recipes` BEGIN DELETE FROM `recipe_fts` WHERE `docid`=OLD.`rowid`; END")
+            database.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_recipe_fts_AFTER_UPDATE` AFTER UPDATE ON `recipes` BEGIN INSERT INTO `recipe_fts`(`docid`, `title`, `summary`) VALUES (NEW.`rowid`, NEW.`title`, NEW.`summary`); END")
+            database.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_recipe_fts_AFTER_INSERT` AFTER INSERT ON `recipes` BEGIN INSERT INTO `recipe_fts`(`docid`, `title`, `summary`) VALUES (NEW.`rowid`, NEW.`title`, NEW.`summary`); END")
+        }
+    }
+
     fun getDatabase(context: Context): NapectDatabase {
         return INSTANCE ?: synchronized(this) {
             val callback = object : RoomDatabase.Callback() {
@@ -194,7 +250,7 @@ object DatabaseProvider {
                 NapectDatabase::class.java,
                 "napect.db"
             )
-                .addMigrations(migration2to3, migration3to4, migration4to5, migration5to6, migration6to7, migration7to8, migration8to9, migration9to10)
+                .addMigrations(migration2to3, migration3to4, migration4to5, migration5to6, migration6to7, migration7to8, migration8to9, migration9to10, migration10to11, migration11to12)
                 .addCallback(callback)
                 .build()
             INSTANCE = instance
