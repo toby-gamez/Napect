@@ -8,13 +8,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.SideEffect
-import com.tkolymp.napect.data.local.DatabaseProvider
 import com.tkolymp.napect.data.network.UrlImportService
 import com.tkolymp.napect.ui.recipes.UrlImportViewModel
 import com.tkolymp.napect.ui.theme.NapectTheme
 import com.tkolymp.napect.data.local.SettingsRepository
 import com.tkolymp.napect.data.local.ThemeMode
 import com.tkolymp.napect.data.local.UserPreferences
+import com.tkolymp.napect.domain.repository.RecipeRepository
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -31,20 +31,16 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var importService: UrlImportService
     @Inject lateinit var settingsRepo: SettingsRepository
+    @Inject lateinit var recipeRepo: RecipeRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Ensure default tags exist (idempotent) so fresh installs or upgrades get defaults
-        val db = DatabaseProvider.getDatabase(applicationContext)
         lifecycleScope.launch {
             try {
-                // repository's ensureDefaultTags is available via database-backed repo
-                // call directly on a temporary RecipeRepositoryImpl to seed defaults
-                val repo = com.tkolymp.napect.data.repository.RecipeRepositoryImpl(db.recipeDao(), db.tagDao())
-                repo.ensureDefaultTags()
-                repo.migrateEnglishTagsToCzech()
+                recipeRepo.ensureDefaultTags()
+                recipeRepo.migrateEnglishTagsToCzech()
             } catch (e: Exception) {
                 Timber.w(e, "Failed to ensure default tags on startup")
             }

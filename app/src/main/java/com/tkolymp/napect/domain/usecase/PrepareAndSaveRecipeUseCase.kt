@@ -1,11 +1,9 @@
 package com.tkolymp.napect.domain.usecase
 
 import com.tkolymp.napect.data.ai.AiClient
-import com.tkolymp.napect.data.ai.TagSuggestion
 import com.tkolymp.napect.domain.model.Category
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.repository.RecipeRepository
-import timber.log.Timber
 import javax.inject.Inject
 
 class PrepareAndSaveRecipeUseCase @Inject constructor(
@@ -28,20 +26,8 @@ class PrepareAndSaveRecipeUseCase @Inject constructor(
 
         val summary = recipe.summary ?: ai.generateSummary(recipe.title, allIng, recipe.steps)
 
-        val finalTagIds = if (tagIds.isNotEmpty()) {
-            tagIds
-        } else {
-            try {
-                val suggestion = repo.suggestTagsForRecipe(recipe)
-                (suggestion.confirmed + suggestion.newlyCreated).map { it.id }
-            } catch (e: Exception) {
-                Timber.w(e, "Tag suggestion fallback")
-                emptyList()
-            }
-        }
-
         val prepared = recipe.copy(category = category, summary = summary)
-        return repo.saveRecipeWithTags(prepared, finalTagIds)
+        return repo.saveRecipeWithTags(prepared, tagIds)
     }
 
     /**
@@ -58,19 +44,7 @@ class PrepareAndSaveRecipeUseCase @Inject constructor(
 
         val summary = recipe.summary ?: ai.generateSummary(recipe.title, allIng, recipe.steps)
 
-        val finalTagIds = if (tagIds.isNotEmpty()) {
-            tagIds
-        } else {
-            try {
-                val suggestion = repo.suggestTagsForRecipe(recipe)
-                (suggestion.confirmed + suggestion.newlyCreated).map { it.id }
-            } catch (e: Exception) {
-                Timber.w(e, "Tag suggestion fallback in update")
-                emptyList()
-            }
-        }
-
         val prepared = recipe.copy(category = category, summary = summary)
-        repo.saveRecipeWithTags(prepared, finalTagIds)
+        repo.saveRecipeWithTags(prepared, tagIds)
     }
 }

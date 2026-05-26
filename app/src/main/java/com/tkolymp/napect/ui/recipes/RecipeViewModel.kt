@@ -24,21 +24,15 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.asStateFlow
 import com.tkolymp.napect.domain.model.Tag
-import com.tkolymp.napect.data.ai.AiClient
 import timber.log.Timber
 import com.tkolymp.napect.domain.model.TagGroup
 
 @HiltViewModel
 class RecipeViewModel @Inject constructor(
     private val repo: RecipeRepository,
-    private val ai: AiClient,
     private val classifyRecipe: ClassifyRecipeUseCase,
     private val prepareAndSave: PrepareAndSaveRecipeUseCase,
 ) : ViewModel() {
-    val recipeListItems: StateFlow<List<RecipeListItem>> = repo.getAllRecipeListItems()
-        .catch { emit(emptyList()) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     private val _searchQuery = MutableStateFlow("")
     val searchListItems: StateFlow<List<RecipeListItem>> = _searchQuery
         .filter { it.length >= 2 || it.isBlank() }
@@ -65,16 +59,12 @@ class RecipeViewModel @Inject constructor(
     }.catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _pagingInvalidationTick = MutableStateFlow(0)
-
-    val pagedRecipes: Flow<PagingData<RecipeListItem>> = combine(_searchQuery, _selectedTagId, _pagingInvalidationTick) { q, tagId, _ ->
+    val pagedRecipes: Flow<PagingData<RecipeListItem>> = combine(_searchQuery, _selectedTagId) { q, tagId ->
         q to tagId
     }.flatMapLatest { (q, tagId) ->
         val query = if (q.length < 2) "" else q
         repo.getPagedRecipeListItems(tagId, query).cachedIn(viewModelScope)
     }
-
-    private fun invalidatePaging() { _pagingInvalidationTick.value++ }
 
     val selectedTagId: StateFlow<Long?> = _selectedTagId.asStateFlow()
     fun setSelectedTagId(tagId: Long?) { _selectedTagId.value = tagId }
@@ -90,7 +80,7 @@ class RecipeViewModel @Inject constructor(
             try {
                 val id = prepareAndSave(recipe)
                 _error.value = null
-                invalidatePaging()
+
                 onComplete(id)
             } catch (e: Exception) {
                 _error.value = e.message ?: "Unknown error"
@@ -125,11 +115,7 @@ class RecipeViewModel @Inject constructor(
                 recipe.title, tagIds, _selectedTagId.value, _searchQuery.value)
             try {
                 val id = prepareAndSave(recipe, tagIds)
-                Timber.d("createRecipeWithTags: success id=%d", id)
                 _error.value = null
-                invalidatePaging()
-                Timber.d("createRecipeWithTags: after invalidatePaging tick=%d selectedTagId=%s searchQuery='%s'",
-                    _pagingInvalidationTick.value, _selectedTagId.value, _searchQuery.value)
                 onComplete(id)
             } catch (e: Exception) {
                 Timber.w(e, "createRecipeWithTags: failed")
@@ -143,7 +129,7 @@ class RecipeViewModel @Inject constructor(
             try {
                 prepareAndSave.update(recipe, tagIds)
                 _error.value = null
-                invalidatePaging()
+
                 onComplete()
             } catch (e: Exception) {
                 _error.value = e.message ?: "Unknown error"
@@ -174,7 +160,7 @@ class RecipeViewModel @Inject constructor(
             try {
                 prepareAndSave.update(recipe)
                 _error.value = null
-                invalidatePaging()
+
                 onComplete()
             } catch (e: Exception) {
                 _error.value = e.message ?: "Unknown error"
@@ -187,7 +173,7 @@ class RecipeViewModel @Inject constructor(
             try {
                 repo.deleteRecipe(id)
                 _error.value = null
-                invalidatePaging()
+
                 onComplete()
             } catch (e: Exception) {
                 _error.value = e.message ?: "Unknown error"

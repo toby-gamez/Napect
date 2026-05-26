@@ -208,14 +208,14 @@ fun RecipeDetailScreen(
 
             // ── Nutrition ─────────────────────────────────────────────────────────
             val hasNutrition = recipe.caloriesKcal != null || recipe.fatG != null ||
-                recipe.carbsG != null || recipe.proteinsG != null || recipe.nutriScore != null
+                recipe.carbsG != null || recipe.proteinsG != null || !recipe.nutriScore.isNullOrBlank()
             if (hasNutrition) {
                 Spacer(modifier = Modifier.size(16.dp))
                 Text(stringResource(R.string.section_nutrition), style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.size(8.dp))
                 androidx.compose.material3.ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        recipe.nutriScore?.let { score ->
+                        recipe.nutriScore?.takeIf { it.isNotBlank() }?.let { score ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(bottom = 12.dp)
@@ -323,13 +323,6 @@ fun RecipeDetailScreen(
                 }
             }
 
-            if (showConfirmDelete) {
-                androidx.compose.material3.AlertDialog(onDismissRequest = { showConfirmDelete = false }, confirmButton = {
-                    androidx.compose.material3.TextButton(onClick = { showConfirmDelete = false; onDelete?.invoke(recipe.id) }) { Text(stringResource(R.string.delete)) }
-                }, dismissButton = {
-                    androidx.compose.material3.TextButton(onClick = { showConfirmDelete = false }) { Text(stringResource(R.string.cancel)) }
-                }, title = { Text(stringResource(R.string.delete_recipe_title)) }, text = { Text(stringResource(R.string.delete_recipe_message)) })
-            }
         }
 
     }

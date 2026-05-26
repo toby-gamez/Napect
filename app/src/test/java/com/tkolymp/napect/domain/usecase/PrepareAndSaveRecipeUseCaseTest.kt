@@ -66,14 +66,10 @@ class PrepareAndSaveRecipeUseCaseTest {
     }
 
     @Test
-    fun `invoke falls back to tag suggestion when tagIds empty`() = runTest {
-        fakeRepo.suggestTagsResult = com.tkolymp.napect.data.ai.TagSuggestion(
-            confirmed = listOf(Tag(id = 10, name = "AutoTag", group = TagGroup.CATEGORY)),
-            newlyCreated = emptyList()
-        )
+    fun `invoke saves with no tags when tagIds empty`() = runTest {
         val id = useCase(sampleRecipe(), tagIds = emptyList())
         val saved = fakeRepo.savedRecipes.find { it.id == id }
-        assertTrue(saved?.tags?.any { it.id == 10L } ?: false)
+        assertTrue(saved?.tags?.isEmpty() ?: false)
     }
 
     @Test

@@ -81,5 +81,5 @@ object RepositoryModule {
     @Provides
     @Singleton
     fun provideRecipeRepository(db: NapectDatabase): RecipeRepository =
-        RecipeRepositoryImpl(db.recipeDao(), db.tagDao())
+        RecipeRepositoryImpl(db.recipeDao(), db.tagDao(), db)
 }

@@ -48,7 +48,7 @@
     <!-- Add/edit recipe -->
     <string name="label_title">Název</string>
     <string name="label_summary">Popis</string>
-    <string name="label_source_url">Zdrojová URL</string>
+    <string name="label_source_url">Zdrojový odkaz</string>
     <string name="selected_photo">Vybraná fotografie</string>
     <string name="remove_photo">Odebrat fotografii</string>
     <string name="section_ingredients">Ingredience</string>
@@ -155,4 +155,7 @@
     <string name="openai_test_success">Připojení úspěšné</string>
     <string name="openai_test_failure">Chyba: %s</string>
     <string name="openai_privacy_notice">Při importu jsou data receptu odesílána na OpenAI. Bez klíče se použije lokální parser.</string>
+    <string name="loading">Nahrávání</string>
+    <string name="no_recipes">Zatím žádné recepty</string>
+    <string name="scanned_recipe">Naskenovaný recept</string>
 </resources>

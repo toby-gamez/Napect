@@ -15,6 +15,7 @@ import com.tkolymp.napect.domain.model.IngredientGroup
 import com.tkolymp.napect.domain.model.Recipe
 import com.tkolymp.napect.domain.model.Step
 import com.tkolymp.napect.domain.repository.RecipeRepository
+import com.tkolymp.napect.domain.usecase.ClassifyRecipeUseCase
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -48,6 +49,7 @@ class UrlImportViewModel @Inject constructor(
     private val repo: RecipeRepository,
     private val ai: AiClient,
     private val workManager: WorkManager,
+    private val classifyRecipe: ClassifyRecipeUseCase,
 ) : ViewModel() {
     private val _state = MutableStateFlow<UrlImportState>(UrlImportState.Idle)
     val state: StateFlow<UrlImportState> = _state.asStateFlow()
@@ -93,17 +95,15 @@ class UrlImportViewModel @Inject constructor(
                 val lines = rawText.lines().map { it.trim() }.filter { it.isNotBlank() }
                 val ingredients = mutableListOf<String>()
                 val steps = mutableListOf<String>()
+                val unitPattern = Regex("\\b(g|kg|ml|dl|l|tsp|tbsp|cup|oz|lb|ks|lžíce|lžička|šálek)\\b")
                 for (ln in lines) {
-                    // ingredient-like heuristic: starts with digit or fraction or contains 'g'/'kg'/'tsp'/'cup'
                     val lower = ln.lowercase()
                     val looksLikeIngredient = lower.matches(Regex("^[0-9⅛⅜¼½¾⅓⅔].*")) ||
-                            lower.contains("tsp") || lower.contains("tbsp") || lower.contains("cup") ||
-                            lower.contains("g") || lower.contains("kg") || lower.contains("ml") || lower.contains("l")
-
+                            unitPattern.containsMatchIn(lower)
                     if (looksLikeIngredient) ingredients.add(ln) else steps.add(ln)
                 }
 
-                val title = lines.firstOrNull() ?: "Scanned Recipe"
+                val title = lines.firstOrNull() ?: context.getString(com.tkolymp.napect.R.string.scanned_recipe)
                 val data = ImportedRecipeData(title = title, description = null, ingredientGroups = groupIngredients(ingredients), steps = steps, sourceUrl = null)
                 _state.value = UrlImportState.Success(data)
             } catch (e: Exception) {
@@ -126,22 +126,6 @@ class UrlImportViewModel @Inject constructor(
         cont.invokeOnCancellation {
             // best effort cancel - Task doesn't support cancellation uniformly
         }
-    }
-
-    private fun classifyRecipe(title: String?, ingredients: List<String>, steps: List<String>): com.tkolymp.napect.domain.model.Category {
-        val text = (listOfNotNull(title) + ingredients + steps).joinToString(" ").lowercase()
-        val map = mapOf(
-            com.tkolymp.napect.domain.model.Category.SOUP to listOf("soup", "broth", "bouillon", "polév"),
-            com.tkolymp.napect.domain.model.Category.DESSERT to listOf("cake", "cookie", "dessert", "pudding", "sweet", "cukr", "koláč"),
-            com.tkolymp.napect.domain.model.Category.BAKING to listOf("bake", "bread", "yeast", "oven", "pečení", "chléb"),
-            com.tkolymp.napect.domain.model.Category.BREAKFAST to listOf("breakfast", "porridge", "muesli", "snídan"),
-            com.tkolymp.napect.domain.model.Category.QUICK to listOf("quick", "30 min", "15 min", "fast", "rychl"),
-            com.tkolymp.napect.domain.model.Category.DIET to listOf("gluten", "vegan", "vegetarian", "keto", "low carb", "bezlepk")
-        )
-        for ((cat, keys) in map) {
-            for (k in keys) if (text.contains(k)) return cat
-        }
-        return com.tkolymp.napect.domain.model.Category.MAIN
     }
 
     private fun isValidUrl(url: String) =
@@ -185,7 +169,7 @@ class UrlImportViewModel @Inject constructor(
 
             val allIngredients = domainGroups.flatMap { it.ingredients }
             val steps = data.steps.mapIndexed { idx, s -> Step(stepNumber = idx + 1, instruction = s) }
-            val category = classifyRecipe(data.title, data.ingredients, data.steps)
+            val category = classifyRecipe(data.title ?: "", data.ingredients, data.steps)
             val recipe = Recipe(
                 title = data.title,
                 summary = data.description ?: ai.generateSummary(data.title, allIngredients, steps, data),

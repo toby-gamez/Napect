@@ -44,7 +44,7 @@ class RecipeViewModelTest {
         fakeAi = FakeAiClient()
         classifyRecipe = ClassifyRecipeUseCase()
         prepareAndSave = PrepareAndSaveRecipeUseCase(classifyRecipe, fakeRepo, fakeAi)
-        viewModel = RecipeViewModel(fakeRepo, fakeAi, classifyRecipe, prepareAndSave)
+        viewModel = RecipeViewModel(fakeRepo, classifyRecipe, prepareAndSave)
     }
 
     @After
@@ -54,7 +54,7 @@ class RecipeViewModelTest {
 
     @Test
     fun `initial state has empty recipe list`() {
-        assertTrue(viewModel.recipeListItems.value.isEmpty())
+        assertTrue(viewModel.filteredRecipeListItems.value.isEmpty())
     }
 
     @Test

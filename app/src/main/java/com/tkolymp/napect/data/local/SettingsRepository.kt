@@ -33,7 +33,7 @@ class SettingsRepository(private val context: Context) : OpenAiConfig {
         val SCREENSHOT_PROTECTION = booleanPreferencesKey("screenshot_protection")
         val OPENAI_MODEL = stringPreferencesKey("openai_model")
         val OPENAI_BASE_URL = stringPreferencesKey("openai_base_url")
-        fun plannedCookKey(id: Long) = stringPreferencesKey("planned_cook_\$id")
+        fun plannedCookKey(id: Long) = stringPreferencesKey("planned_cook_${id}")
     }
 
     val prefsFlow: Flow<UserPreferences> = context.dataStore.data.map { prefs ->

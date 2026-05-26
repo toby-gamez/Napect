@@ -2,6 +2,7 @@ package com.tkolymp.napect.data.local
 
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
+import androidx.room.InvalidationTracker
 import com.tkolymp.napect.data.local.dao.RecipeDao
 import com.tkolymp.napect.data.mapper.toDomainListItem
 import com.tkolymp.napect.domain.model.RecipeListItem
@@ -9,9 +10,20 @@ import timber.log.Timber
 
 class RecipePagingSource(
     private val dao: RecipeDao,
+    private val db: NapectDatabase,
     private val tagId: Long? = null,
     private val searchQuery: String = "",
 ) : PagingSource<Int, RecipeListItem>() {
+
+    private val observer = object : InvalidationTracker.Observer("recipes", "recipe_tags", "recipe_fts") {
+        override fun onInvalidated(tables: Set<String>) {
+            invalidate()
+        }
+    }
+
+    init {
+        db.invalidationTracker.addWeakObserver(observer)
+    }
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, RecipeListItem> {
         val position = params.key ?: 0

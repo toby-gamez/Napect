@@ -2,6 +2,7 @@ package com.tkolymp.napect.data.repository
 
 import com.tkolymp.napect.data.local.dao.IngredientGroupInsert
 import com.tkolymp.napect.data.local.dao.RecipeDao
+import com.tkolymp.napect.data.local.NapectDatabase
 import com.tkolymp.napect.data.local.RecipePagingSource
 import com.tkolymp.napect.data.local.dao.TagDao
 import com.tkolymp.napect.data.ai.TagSuggester
@@ -11,6 +12,7 @@ import com.tkolymp.napect.data.local.entity.TagEntity
 import com.tkolymp.napect.domain.model.IngredientGroup
 import com.tkolymp.napect.domain.model.TagGroup
 import com.tkolymp.napect.domain.model.Category
+import com.tkolymp.napect.domain.usecase.DifficultyEstimator
 import com.tkolymp.napect.data.mapper.toDomain
 import com.tkolymp.napect.data.mapper.toEntity
 import com.tkolymp.napect.data.mapper.toDomainListItem
@@ -23,11 +25,11 @@ import androidx.paging.PagingData
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import timber.log.Timber
-import java.text.Normalizer
 
 class RecipeRepositoryImpl(
     private val dao: RecipeDao,
-    private val tagDao: TagDao
+    private val tagDao: TagDao,
+    private val db: NapectDatabase,
 ) : RecipeRepository {
 
     // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -128,7 +130,7 @@ class RecipeRepositoryImpl(
     override fun getPagedRecipeListItems(tagId: Long?, query: String): Flow<PagingData<RecipeListItem>> {
         val sanitized = if (query.isNotBlank()) sanitizeFtsQuery(query) else ""
         return Pager(PagingConfig(pageSize = 20)) {
-            RecipePagingSource(dao, tagId, sanitized)
+            RecipePagingSource(dao, db, tagId, sanitized)
         }.flow
     }
 
@@ -157,46 +159,8 @@ class RecipeRepositoryImpl(
         val existingDifficulties = suggestions.filter { it.second == TagGroup.DIFFICULTY }.toSet()
         if (existingDifficulties.isNotEmpty()) suggestions.removeAll(existingDifficulties)
 
-        fun extractEstimatedMinutes(s: String): Int? {
-            val lower = s.lowercase()
-            val hMinMatch = Regex("(\\d{1,2})\\s*h(?:ours?)?\\s*(\\d{1,2})\\s*min").find(lower)
-            if (hMinMatch != null) {
-                val h = hMinMatch.groupValues[1].toIntOrNull() ?: 0
-                val m = hMinMatch.groupValues[2].toIntOrNull() ?: 0
-                return h * 60 + m
-            }
-            val hourMatch = Regex("(\\d{1,2}(?:\\.\\d+)?)\\s*h(?:ours?)?").find(lower)
-            if (hourMatch != null) {
-                val h = hourMatch.groupValues[1].toDoubleOrNull() ?: return null
-                return (h * 60).toInt()
-            }
-            val minMatch = Regex("(\\d{1,3})\\s*min").find(lower)
-            if (minMatch != null) return minMatch.groupValues[1].toIntOrNull()
-            return null
-        }
-
-        val ingCount = recipe.allIngredients.size
-        val stepCount = recipe.steps.size
-        val estimatedMins = extractEstimatedMinutes(text)
-        var score = 0
-        if (ingCount <= 6) score-- else if (ingCount > 12) score++
-        if (stepCount <= 4) score-- else if (stepCount > 8) score++
-        if (estimatedMins != null) {
-            if (estimatedMins <= 20) score-- else if (estimatedMins >= 90) score++
-        }
-        var difficulty = when {
-            score <= -1 -> "Jednoduché"
-            score >= 1  -> "Náročné"
-            else        -> "Střední"
-        }
-
-        val normalized = Normalizer.normalize(text.lowercase(), Normalizer.Form.NFD).replace("\\p{M}+".toRegex(), "")
-        val normalizedWs = normalized.replace('-', ' ')
-        if (normalizedWs.contains("no bake") || normalizedWs.contains("nobake") || normalizedWs.contains("nepecen")) {
-            difficulty = "Jednoduché"
-        }
-
-        Timber.d("Inferred difficulty for '%s': %s (score=%d, ing=%d, steps=%d, mins=%s)", recipe.title, difficulty, score, ingCount, stepCount, estimatedMins)
+        val difficulty = DifficultyEstimator.estimate(recipe)
+        Timber.d("Inferred difficulty for '%s': %s", recipe.title, difficulty)
         suggestions.add(difficulty to TagGroup.DIFFICULTY)
 
         val confirmed = mutableListOf<com.tkolymp.napect.domain.model.Tag>()
