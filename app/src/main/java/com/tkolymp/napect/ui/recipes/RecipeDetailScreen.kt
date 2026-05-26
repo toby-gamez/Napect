@@ -208,29 +208,30 @@ fun RecipeDetailScreen(
             }
 
             // ── Nutrition ─────────────────────────────────────────────────────────
-            val hasNutrition = recipe.caloriesKcal != null || recipe.fatG != null ||
-                recipe.carbsG != null || recipe.proteinsG != null || !recipe.nutriScore.isNullOrBlank()
-            if (hasNutrition) {
+            val hasNutriScore = !recipe.nutriScore.isNullOrBlank()
+            val hasAnyNutrient = recipe.caloriesKcal != null || recipe.fatG != null ||
+                recipe.carbsG != null || recipe.proteinsG != null
+            if (hasNutriScore || hasAnyNutrient) {
                 Spacer(modifier = Modifier.size(16.dp))
                 Text(stringResource(R.string.section_nutrition), style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.size(8.dp))
                 androidx.compose.material3.ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        recipe.nutriScore?.takeIf { it.isNotBlank() }?.let { score ->
+                        if (hasNutriScore) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(bottom = 12.dp)
+                                modifier = Modifier.then(if (hasAnyNutrient) Modifier.padding(bottom = 12.dp) else Modifier)
                             ) {
                                 Text(stringResource(R.string.nutrition_nutriscore), style = MaterialTheme.typography.bodyMedium)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 androidx.compose.material3.Surface(
-                                    color = nutriScoreColor(score),
+                                    color = nutriScoreColor(recipe.nutriScore),
                                     shape = androidx.compose.foundation.shape.CircleShape,
                                     modifier = Modifier.size(32.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                                         Text(
-                                            score,
+                                            recipe.nutriScore,
                                             color = androidx.compose.ui.graphics.Color.White,
                                             style = MaterialTheme.typography.titleSmall,
                                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
@@ -239,22 +240,24 @@ fun RecipeDetailScreen(
                                 }
                             }
                         }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            listOf(
-                                Triple(R.string.nutrition_calories, recipe.caloriesKcal?.times(servings), stringResource(R.string.nutrition_unit_kcal)),
-                                Triple(R.string.nutrition_fat,      recipe.fatG?.times(servings),      stringResource(R.string.nutrition_unit_g)),
-                                Triple(R.string.nutrition_carbs,    recipe.carbsG?.times(servings),    stringResource(R.string.nutrition_unit_g)),
-                                Triple(R.string.nutrition_proteins, recipe.proteinsG?.times(servings), stringResource(R.string.nutrition_unit_g)),
-                            ).forEach { (labelRes, v, unit) ->
-                                if (v != null) {
-                                    NutritionDetailCell(
-                                        label = stringResource(labelRes),
-                                        value = formatNutritionDetail(v),
-                                        unit = unit,
-                                    )
+                        if (hasAnyNutrient) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                listOf(
+                                    Triple(R.string.nutrition_calories, recipe.caloriesKcal?.times(servings), stringResource(R.string.nutrition_unit_kcal)),
+                                    Triple(R.string.nutrition_fat,      recipe.fatG?.times(servings),      stringResource(R.string.nutrition_unit_g)),
+                                    Triple(R.string.nutrition_carbs,    recipe.carbsG?.times(servings),    stringResource(R.string.nutrition_unit_g)),
+                                    Triple(R.string.nutrition_proteins, recipe.proteinsG?.times(servings), stringResource(R.string.nutrition_unit_g)),
+                                ).forEach { (labelRes, v, unit) ->
+                                    if (v != null) {
+                                        NutritionDetailCell(
+                                            label = stringResource(labelRes),
+                                            value = formatNutritionDetail(v),
+                                            unit = unit,
+                                        )
+                                    }
                                 }
                             }
                         }

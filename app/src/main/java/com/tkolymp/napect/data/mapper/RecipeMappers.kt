@@ -42,7 +42,7 @@ fun RecipeWithDetails.toDomain(): Recipe = Recipe(
     fatG = recipe.fatG,
     carbsG = recipe.carbsG,
     proteinsG = recipe.proteinsG,
-    nutriScore = recipe.nutriScore,
+    nutriScore = recipe.nutriScore?.takeIf { it.isNotBlank() && it != "null" },
     timeMinutes = recipe.timeMinutes,
 )
 

@@ -277,7 +277,7 @@ class UrlImportViewModel @Inject constructor(
                 fatG = if (json.isNull("fatG")) null else json.optDouble("fatG").takeIf { !it.isNaN() },
                 carbsG = if (json.isNull("carbsG")) null else json.optDouble("carbsG").takeIf { !it.isNaN() },
                 proteinsG = if (json.isNull("proteinsG")) null else json.optDouble("proteinsG").takeIf { !it.isNaN() },
-                nutriScore = json.optString("nutriScore").ifBlank { null },
+                nutriScore = if (json.isNull("nutriScore")) null else json.optString("nutriScore").ifBlank { null },
                 timeMinutes = if (json.isNull("timeMinutes")) null else json.optInt("timeMinutes").takeIf { it > 0 },
                 imageUrl = json.optString("imageUrl").ifBlank { null },
             )

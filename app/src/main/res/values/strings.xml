@@ -20,6 +20,7 @@
     <string name="search_clear">Vyčistit</string>
 
     <!-- General buttons -->
+    <string name="back">Zpět</string>
     <string name="save">Uložit</string>
     <string name="cancel">Zrušit</string>
     <string name="delete">Smazat</string>

@@ -16,6 +16,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,11 +31,13 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
@@ -173,6 +176,13 @@ fun NapectApp(
         CompositionLocalProvider(LocalSnackbarHostState provides snackbarHostState) {
         Scaffold(modifier = Modifier.fillMaxSize(), snackbarHost = { SnackbarHost(snackbarHostState) }, topBar = {
             CenterAlignedTopAppBar(
+                navigationIcon = {
+                    if (currentRoute !in topLevelRoutes) {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                        }
+                    }
+                },
                 title = {
                     val titleText = when {
                         currentRoute == "add" -> stringResource(R.string.title_add_recipe)
@@ -652,17 +662,24 @@ private fun RecipeSearchBar(
                         }
                         .padding(8.dp)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = r.title,
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier.weight(1f)
+                            )
                             if (r.photoPath != null) {
                                 AsyncImage(
                                     model = java.io.File(r.photoPath),
                                     contentDescription = stringResource(R.string.recipe_photo),
-                                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                                    modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp)),
                                     contentScale = ContentScale.Crop
                                 )
                             }
-                            Text(r.title, style = MaterialTheme.typography.headlineSmall)
-                            r.summary?.let { Text(it, modifier = Modifier.padding(top = 4.dp)) }
                         }
                     }
                 }
@@ -683,20 +700,38 @@ private fun HomeTab(
     val currentTagId by vm.selectedTagId.collectAsState()
     val errorState by vm.error.collectAsState()
     val listState = rememberLazyListState()
-    val usedTags = remember(allTags) {
-        allTags.filter { it.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || it.group == com.tkolymp.napect.domain.model.TagGroup.OTHER }
+    val usedTags = remember(allTags, filteredItems) {
+        allTags.filter { tg ->
+            (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) &&
+                filteredItems.any { r -> r.tags.any { t -> t.id == tg.id } }
+        }
     }
     val suggestions = filteredItems.take(6)
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        if (!errorState.isNullOrBlank()) {
-            androidx.compose.material3.Card(
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
-                colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-            ) {
-                Text(text = errorState!!, modifier = Modifier.padding(12.dp), color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (!errorState.isNullOrBlank()) {
+                androidx.compose.material3.Card(
+                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                    colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Text(text = errorState!!, modifier = Modifier.padding(12.dp), color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodyMedium)
+                }
             }
-        }
+            TagsRow(
+                availableTags = usedTags,
+                selectedTagId = currentTagId,
+                onTagSelected = { vm.setSelectedTagId(it) },
+            )
+            PagedRecipeListScreen(
+                pagedRecipes = vm.pagedRecipes,
+                modifier = Modifier.weight(1f),
+                onItemClick = onNavigateToRecipe,
+                contentPadding = PaddingValues(top = 63.dp),
+            onDelete = { id -> vm.deleteRecipe(id) },
+            lazyListState = listState,
+        )
+    }
         RecipeSearchBar(
             searchQuery = searchQuery,
             suggestions = suggestions,
@@ -704,19 +739,6 @@ private fun HomeTab(
             onQueryChange = { vm.setSearchQuery(it) },
             onClearQuery = { vm.setSearchQuery("") },
             onSuggestionClick = { id, title -> vm.setSearchQuery(title); onNavigateToRecipe(id) },
-        )
-        TagsRow(
-            availableTags = usedTags,
-            selectedTagId = currentTagId,
-            onTagSelected = { vm.setSelectedTagId(it) },
-        )
-        PagedRecipeListScreen(
-            pagedRecipes = vm.pagedRecipes,
-            modifier = Modifier.weight(1f),
-            onItemClick = onNavigateToRecipe,
-            contentPadding = PaddingValues(0.dp),
-            onDelete = { id -> vm.deleteRecipe(id) },
-            lazyListState = listState,
         )
     }
 }
@@ -740,7 +762,22 @@ private fun FavoritesTab(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TagsRow(
+                availableTags = usedTags,
+                selectedTagId = currentTagId,
+                onTagSelected = { vm.setSelectedTagId(it) },
+            )
+            RecipeListScreen(
+                recipes = favItems,
+                modifier = Modifier.weight(1f),
+                onItemClick = onNavigateToRecipe,
+                contentPadding = PaddingValues(top = 63.dp),
+            onDelete = { id -> vm.deleteRecipe(id) },
+            lazyListState = listState,
+        )
+    }
         RecipeSearchBar(
             searchQuery = searchQuery,
             suggestions = favItems.take(6),
@@ -748,19 +785,6 @@ private fun FavoritesTab(
             onQueryChange = { vm.setSearchQuery(it) },
             onClearQuery = { vm.setSearchQuery("") },
             onSuggestionClick = { id, title -> vm.setSearchQuery(title); onNavigateToRecipe(id) },
-        )
-        TagsRow(
-            availableTags = usedTags,
-            selectedTagId = currentTagId,
-            onTagSelected = { vm.setSelectedTagId(it) },
-        )
-        RecipeListScreen(
-            recipes = favItems,
-            modifier = Modifier.weight(1f),
-            onItemClick = onNavigateToRecipe,
-            contentPadding = PaddingValues(0.dp),
-            onDelete = { id -> vm.deleteRecipe(id) },
-            lazyListState = listState,
         )
     }
 }
