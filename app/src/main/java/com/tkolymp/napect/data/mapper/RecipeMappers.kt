@@ -17,6 +17,7 @@ import com.tkolymp.napect.domain.model.Step
 import com.tkolymp.napect.data.local.entity.TagEntity
 import com.tkolymp.napect.domain.model.Tag
 import com.tkolymp.napect.domain.model.TagGroup
+import java.text.Normalizer
 import java.time.Instant
 
 fun RecipeWithDetails.toDomain(): Recipe = Recipe(
@@ -86,7 +87,14 @@ fun Recipe.toEntity(): RecipeEntity = RecipeEntity(
     proteinsG = proteinsG,
     nutriScore = nutriScore,
     timeMinutes = timeMinutes,
+    titleNormalized = title.normalizeForSearch(),
+    summaryNormalized = summary?.normalizeForSearch(),
 )
+
+internal fun String.normalizeForSearch(): String =
+    Normalizer.normalize(this, Normalizer.Form.NFD)
+        .replace(Regex("\\p{M}"), "")
+        .lowercase()
 
 // ─── Ingredient group ────────────────────────────────────────────────────────
 

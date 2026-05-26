@@ -29,7 +29,8 @@ import com.tkolymp.napect.data.local.dao.TagDao
     // version 10: add nutrition columns (calories_kcal, fat_g, carbs_g, proteins_g, nutri_score)
     // version 11: add time columns (prep_time_minutes, cook_time_minutes) — superseded by v12
     // version 12: collapse prep/cook time into a single time_minutes column
-    version = 12,
+    // version 13: add title_normalized/summary_normalized columns; FTS now indexes those for diacritics-insensitive search
+    version = 13,
     exportSchema = true
 )
 abstract class NapectDatabase : RoomDatabase() {

@@ -65,7 +65,7 @@ fun SettingsScreen(
     val openAiModel by settingsVm.openAiModel.collectAsState()
     val testConnectionResult by settingsVm.testConnectionResult.collectAsState()
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+    Column(modifier = modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState())) {
         if (error != null) {
             Text(
                 text = error,

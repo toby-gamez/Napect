@@ -224,6 +224,31 @@ object DatabaseProvider {
         }
     }
 
+    // Migration from v12 -> v13: add normalized text columns and rebuild FTS on them so that
+    // diacritics-insensitive search works (e.g. "kure" matches "Kuřecí").
+    val migration12to13 = object : Migration(12, 13) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE `recipes` ADD COLUMN `title_normalized` TEXT NOT NULL DEFAULT ''")
+            database.execSQL("ALTER TABLE `recipes` ADD COLUMN `summary_normalized` TEXT DEFAULT NULL")
+            // Copy raw values; background pass in getDatabase() will properly normalize them.
+            database.execSQL("UPDATE `recipes` SET `title_normalized` = `title`, `summary_normalized` = `summary`")
+            // Drop old FTS and triggers referencing title/summary.
+            database.execSQL("DROP TRIGGER IF EXISTS `room_fts_content_sync_recipe_fts_BEFORE_UPDATE`")
+            database.execSQL("DROP TRIGGER IF EXISTS `room_fts_content_sync_recipe_fts_BEFORE_DELETE`")
+            database.execSQL("DROP TRIGGER IF EXISTS `room_fts_content_sync_recipe_fts_AFTER_UPDATE`")
+            database.execSQL("DROP TRIGGER IF EXISTS `room_fts_content_sync_recipe_fts_AFTER_INSERT`")
+            database.execSQL("DROP TABLE IF EXISTS `recipe_fts`")
+            // Recreate FTS on normalized columns.
+            database.execSQL("CREATE VIRTUAL TABLE `recipe_fts` USING fts4(content=`recipes`, `title_normalized`, `summary_normalized`)")
+            database.execSQL("INSERT INTO `recipe_fts`(docid, title_normalized, summary_normalized) SELECT id, title_normalized, summary_normalized FROM recipes")
+            // Recreate Room-generated triggers for the new columns.
+            database.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_recipe_fts_BEFORE_UPDATE` BEFORE UPDATE ON `recipes` BEGIN DELETE FROM `recipe_fts` WHERE `docid`=OLD.`rowid`; END")
+            database.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_recipe_fts_BEFORE_DELETE` BEFORE DELETE ON `recipes` BEGIN DELETE FROM `recipe_fts` WHERE `docid`=OLD.`rowid`; END")
+            database.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_recipe_fts_AFTER_UPDATE` AFTER UPDATE ON `recipes` BEGIN INSERT INTO `recipe_fts`(`docid`, `title_normalized`, `summary_normalized`) VALUES (NEW.`rowid`, NEW.`title_normalized`, NEW.`summary_normalized`); END")
+            database.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_recipe_fts_AFTER_INSERT` AFTER INSERT ON `recipes` BEGIN INSERT INTO `recipe_fts`(`docid`, `title_normalized`, `summary_normalized`) VALUES (NEW.`rowid`, NEW.`title_normalized`, NEW.`summary_normalized`); END")
+        }
+    }
+
     fun getDatabase(context: Context): NapectDatabase {
         return INSTANCE ?: synchronized(this) {
             val callback = object : RoomDatabase.Callback() {
@@ -250,14 +275,51 @@ object DatabaseProvider {
                 NapectDatabase::class.java,
                 "napect.db"
             )
-                .addMigrations(migration2to3, migration3to4, migration4to5, migration5to6, migration6to7, migration7to8, migration8to9, migration9to10, migration10to11, migration11to12)
+                .addMigrations(migration2to3, migration3to4, migration4to5, migration5to6, migration6to7, migration7to8, migration8to9, migration9to10, migration10to11, migration11to12, migration12to13)
                 .addCallback(callback)
                 .build()
             INSTANCE = instance
             migrateBlobsToFiles(context.applicationContext, instance)
+            migrateNormalizedColumns(instance)
             instance
         }
     }
+
+    /**
+     * Normalize title_normalized/summary_normalized for recipes that still carry the raw
+     * (un-normalized) value copied by migration 12→13. Runs in background; the FTS triggers
+     * automatically keep recipe_fts in sync when the recipes row is updated.
+     */
+    private fun migrateNormalizedColumns(db: NapectDatabase) {
+        Thread {
+            try {
+                val c = db.openHelper.writableDatabase.query(
+                    "SELECT id, title, summary FROM recipes WHERE title_normalized = title OR title_normalized = ''"
+                )
+                val rows = mutableListOf<Triple<Long, String, String?>>()
+                while (c.moveToNext()) {
+                    rows.add(Triple(c.getLong(0), c.getString(1) ?: "", if (c.isNull(2)) null else c.getString(2)))
+                }
+                c.close()
+                for ((id, title, summary) in rows) {
+                    val normTitle = normalizeText(title)
+                    val normSummary = summary?.let { normalizeText(it) }
+                    db.openHelper.writableDatabase.execSQL(
+                        "UPDATE recipes SET title_normalized = ?, summary_normalized = ? WHERE id = ?",
+                        arrayOf<Any?>(normTitle, normSummary, id)
+                    )
+                }
+                if (rows.isNotEmpty()) Timber.d("Normalized %d recipe rows for diacritics-insensitive search", rows.size)
+            } catch (e: Exception) {
+                Timber.w(e, "Failed to migrate normalized columns")
+            }
+        }.apply { isDaemon = true }.start()
+    }
+
+    private fun normalizeText(text: String): String =
+        java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}"), "")
+            .lowercase()
 
     /**
      * One-shot migration of existing BLOB photos to files. Runs on a background thread

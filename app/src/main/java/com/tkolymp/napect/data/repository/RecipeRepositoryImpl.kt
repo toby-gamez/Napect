@@ -33,12 +33,16 @@ class RecipeRepositoryImpl(
     // ─── Helpers ────────────────────────────────────────────────────────────────
 
     private fun sanitizeFtsQuery(query: String): String {
-        return query
-            .replace(Regex("[\"()*:<>~!^]"), " ")
+        // Normalize diacritics (ř→r, á→a …) so the query matches the normalized FTS index,
+        // strip FTS4 syntax chars, then append * to each token for prefix matching.
+        val stripped = java.text.Normalizer.normalize(query, java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}"), "")
+        return stripped
+            .replace(Regex("[^\\p{L}\\p{N} ]"), " ")
             .trim()
             .split(Regex("\\s+"))
             .filter { it.isNotBlank() }
-            .joinToString(" ") { "\"$it\"" }
+            .joinToString(" ") { "$it*" }
     }
 
     /**

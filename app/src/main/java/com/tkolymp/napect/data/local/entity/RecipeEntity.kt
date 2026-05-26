@@ -24,4 +24,6 @@ data class RecipeEntity(
     @ColumnInfo(name = "proteins_g") val proteinsG: Double? = null,
     @ColumnInfo(name = "nutri_score") val nutriScore: String? = null,
     @ColumnInfo(name = "time_minutes") val timeMinutes: Int? = null,
+    @ColumnInfo(name = "title_normalized") val titleNormalized: String = "",
+    @ColumnInfo(name = "summary_normalized") val summaryNormalized: String? = null,
 )
