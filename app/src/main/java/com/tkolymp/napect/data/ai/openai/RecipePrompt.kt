@@ -15,6 +15,7 @@ Náročnost odhadni z počtu kroků a ingrediencí: do 5 kroků a 6 ingrediencí
 Nutriční hodnoty: pokud jsou v HTML uvedeny nutriční hodnoty (kalorie/energie, tuky, sacharidy, bílkoviny, Nutri-Score), extrahuj je přesně jak jsou uvedeny — mohou být celkové (za celý recept) nebo na porci, obojí je v pořádku.
 caloriesKcal = energie v kcal, fatG = tuky v gramech, carbsG = sacharidy v gramech, proteinsG = bílkoviny v gramech.
 Pokud nutriční hodnoty nejsou v textu uvedeny, vrať null. Nevymýšlej je.
+imageUrl = absolutní URL hlavní fotografie receptu ze stránky (nebo null). Vrať pouze absolutní URL začínající http/https, jinak null.
 Odpovídej POUZE platným JSON podle schématu. Žádný markdown, žádné bloky ```json, žádné komentáře."""
 
     val responseFormat: JsonElement = buildJsonObject {
@@ -37,6 +38,7 @@ Odpovídej POUZE platným JSON podle schématu. Žádný markdown, žádné blok
                     add(JsonPrimitive("carbsG"))
                     add(JsonPrimitive("proteinsG"))
                     add(JsonPrimitive("nutriScore"))
+                    add(JsonPrimitive("imageUrl"))
                 })
                 put("properties", buildJsonObject {
                     put("title", buildJsonObject { put("type", "string") })
@@ -128,6 +130,12 @@ Odpovídej POUZE platným JSON podle schématu. Žádný markdown, žádné blok
                                     add(JsonPrimitive("E"))
                                 })
                             })
+                            add(buildJsonObject { put("type", "null") })
+                        })
+                    })
+                    put("imageUrl", buildJsonObject {
+                        put("anyOf", buildJsonArray {
+                            add(buildJsonObject { put("type", "string") })
                             add(buildJsonObject { put("type", "null") })
                         })
                     })

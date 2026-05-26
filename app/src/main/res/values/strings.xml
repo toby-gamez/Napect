@@ -62,6 +62,7 @@
     <string name="add_ingredient">Přidat ingredienci</string>
     <string name="add_section">Přidat sekci</string>
     <string name="add_step">Přidat krok</string>
+    <string name="remove_step">Odebrat krok</string>
     <string name="section_nutrition">Nutriční hodnoty</string>
     <string name="nutrition_per_serving_hint">hodnoty na porci · celkové množství se dopočítá automaticky</string>
     <string name="nutrition_calories">Energie</string>

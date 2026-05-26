@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -30,21 +31,40 @@ import com.tkolymp.napect.domain.model.TagGroup
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun TagsRow(
+    availableTags: List<Tag>,
+    selectedTagId: Long?,
+    onTagSelected: (Long?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tagScrollState = rememberScrollState()
+    val tagCandidates = remember(availableTags) {
+        availableTags.filter { it.group == TagGroup.CATEGORY || it.group == TagGroup.OTHER }
+    }
+    Surface(modifier = modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.horizontalScroll(tagScrollState).padding(horizontal = 8.dp, vertical = 4.dp)) {
+            val allSelected = selectedTagId == null
+            FilterChip(selected = allSelected, onClick = { onTagSelected(null) }, label = { Text(stringResource(R.string.filter_all)) })
+            for (t in tagCandidates) {
+                val sel = selectedTagId == t.id
+                FilterChip(selected = sel, onClick = { onTagSelected(if (sel) null else t.id) }, label = { Text(t.name) }, modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+    }
+}
+
+@Composable
 fun RecipeListScreen(
     recipes: List<RecipeListItem>,
     modifier: Modifier = Modifier,
     onItemClick: (Long) -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(0.dp),
-    availableTags: List<Tag> = emptyList(),
-    selectedTagId: Long? = null,
-    onTagSelected: (Long?) -> Unit = {},
     onDelete: ((Long) -> Unit)? = null,
     emptyMessage: String? = null,
     isLoading: Boolean = false,
     errorMessage: String? = null,
     lazyListState: LazyListState = rememberLazyListState(),
 ) {
-    val tagScrollState = rememberScrollState()
     LazyColumn(modifier = modifier.fillMaxSize().padding(horizontal = 8.dp), state = lazyListState, contentPadding = contentPadding) {
         if (!errorMessage.isNullOrBlank()) {
             item {
@@ -58,20 +78,6 @@ fun RecipeListScreen(
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         style = MaterialTheme.typography.bodyMedium
                     )
-                }
-            }
-        }
-
-        stickyHeader {
-            Surface(modifier = Modifier.fillMaxWidth()) {
-                val tagCandidates = availableTags.filter { it.group == TagGroup.CATEGORY || it.group == TagGroup.OTHER }
-                Row(modifier = Modifier.horizontalScroll(tagScrollState).padding(horizontal = 8.dp, vertical = 4.dp)) {
-                    val allSelected = selectedTagId == null
-                    FilterChip(selected = allSelected, onClick = { onTagSelected(null) }, label = { Text(stringResource(R.string.filter_all)) })
-                    for (t in tagCandidates) {
-                        val sel = selectedTagId == t.id
-                        FilterChip(selected = sel, onClick = { onTagSelected(if (sel) null else t.id) }, label = { Text(t.name) }, modifier = Modifier.padding(start = 8.dp))
-                    }
                 }
             }
         }

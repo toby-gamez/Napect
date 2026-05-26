@@ -40,6 +40,7 @@ import androidx.compose.material3.TextButton
 import coil.compose.AsyncImage
 import com.tkolymp.napect.domain.model.Recipe
 import androidx.compose.foundation.layout.height
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
@@ -89,7 +90,7 @@ fun RecipeDetailScreen(
                 AsyncImage(
                     model = photoModel,
                     contentDescription = stringResource(R.string.recipe_photo),
-                    modifier = Modifier.fillMaxWidth().height(200.dp),
+                    modifier = Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(12.dp)),
                     contentScale = ContentScale.Crop
                 )
             }

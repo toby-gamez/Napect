@@ -18,8 +18,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,12 +32,6 @@ class RecipeViewModel @Inject constructor(
     private val prepareAndSave: PrepareAndSaveRecipeUseCase,
 ) : ViewModel() {
     private val _searchQuery = MutableStateFlow("")
-    val searchListItems: StateFlow<List<RecipeListItem>> = _searchQuery
-        .filter { it.length >= 2 || it.isBlank() }
-        .debounce(300)
-        .flatMapLatest { q -> if (q.isBlank()) repo.getAllRecipeListItems() else repo.searchRecipeListItems(q) }
-        .catch { emit(emptyList()) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun setSearchQuery(q: String) { _searchQuery.value = q }
     val searchQuery = _searchQuery.asStateFlow()
@@ -63,8 +55,8 @@ class RecipeViewModel @Inject constructor(
         q to tagId
     }.flatMapLatest { (q, tagId) ->
         val query = if (q.length < 2) "" else q
-        repo.getPagedRecipeListItems(tagId, query).cachedIn(viewModelScope)
-    }
+        repo.getPagedRecipeListItems(tagId, query)
+    }.cachedIn(viewModelScope)
 
     val selectedTagId: StateFlow<Long?> = _selectedTagId.asStateFlow()
     fun setSelectedTagId(tagId: Long?) { _selectedTagId.value = tagId }

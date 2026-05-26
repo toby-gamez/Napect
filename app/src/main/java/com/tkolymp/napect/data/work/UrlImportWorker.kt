@@ -39,7 +39,7 @@ class UrlImportWorker @AssistedInject constructor(
         return try {
             val result = ai.extractRecipeFromUrl(url).getOrThrow()
 
-            val json = buildJson(result.title, result.description, result.sourceUrl, result.ingredientGroups, result.steps, result.caloriesKcal, result.fatG, result.carbsG, result.proteinsG, result.nutriScore, result.timeMinutes)
+            val json = buildJson(result.title, result.description, result.sourceUrl, result.ingredientGroups, result.steps, result.caloriesKcal, result.fatG, result.carbsG, result.proteinsG, result.nutriScore, result.timeMinutes, result.imageUrl)
             val dir = File(applicationContext.filesDir, "pending_imports").also { it.mkdirs() }
             val file = File(dir, "$id.json")
             file.writeText(json)
@@ -64,6 +64,7 @@ class UrlImportWorker @AssistedInject constructor(
         proteinsG: Double?,
         nutriScore: String?,
         timeMinutes: Int?,
+        imageUrl: String?,
     ): String {
         val root = JSONObject()
         root.put("title", title)
@@ -97,6 +98,7 @@ class UrlImportWorker @AssistedInject constructor(
         root.put("proteinsG", proteinsG ?: JSONObject.NULL)
         root.put("nutriScore", nutriScore ?: JSONObject.NULL)
         root.put("timeMinutes", timeMinutes ?: JSONObject.NULL)
+        root.put("imageUrl", imageUrl ?: JSONObject.NULL)
         return root.toString()
     }
 

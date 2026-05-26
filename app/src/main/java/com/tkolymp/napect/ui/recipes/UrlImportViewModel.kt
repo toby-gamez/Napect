@@ -37,7 +37,7 @@ import kotlin.coroutines.resumeWithException
 sealed interface UrlImportState {
     object Idle : UrlImportState
     object Loading : UrlImportState
-    data class Success(val data: ImportedRecipeData) : UrlImportState
+    data class Success(val data: ImportedRecipeData, val imageBytes: ByteArray? = null) : UrlImportState
     data class Error(val message: String) : UrlImportState
     object Saved : UrlImportState
 }
@@ -140,7 +140,9 @@ class UrlImportViewModel @Inject constructor(
             _state.value = UrlImportState.Loading
             val res = ai.extractRecipeFromUrl(url)
             if (res.isSuccess) {
-                _state.value = UrlImportState.Success(res.getOrThrow())
+                val data = res.getOrThrow()
+                val imageBytes = data.imageUrl?.let { withContext(Dispatchers.IO) { service.downloadImageBytes(it) } }
+                _state.value = UrlImportState.Success(data, imageBytes)
             } else {
                 _state.value = UrlImportState.Error(res.exceptionOrNull()?.message ?: "Unknown error")
             }
@@ -218,7 +220,8 @@ class UrlImportViewModel @Inject constructor(
                         val filePath = info.outputData.getString(UrlImportWorker.KEY_RESULT_FILE)
                         val data = filePath?.let { readResultFile(it) }
                         _state.value = if (data != null) {
-                            UrlImportState.Success(data)
+                            val imageBytes = data.imageUrl?.let { withContext(Dispatchers.IO) { service.downloadImageBytes(it) } }
+                            UrlImportState.Success(data, imageBytes)
                         } else {
                             UrlImportState.Error("Failed to read import result")
                         }
@@ -276,6 +279,7 @@ class UrlImportViewModel @Inject constructor(
                 proteinsG = if (json.isNull("proteinsG")) null else json.optDouble("proteinsG").takeIf { !it.isNaN() },
                 nutriScore = json.optString("nutriScore").ifBlank { null },
                 timeMinutes = if (json.isNull("timeMinutes")) null else json.optInt("timeMinutes").takeIf { it > 0 },
+                imageUrl = json.optString("imageUrl").ifBlank { null },
             )
         } catch (e: Exception) {
             Timber.w(e, "Failed to deserialize import result from %s", path)

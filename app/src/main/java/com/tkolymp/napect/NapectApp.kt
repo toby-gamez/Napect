@@ -101,6 +101,7 @@ import com.tkolymp.napect.ui.recipes.PagedRecipeListScreen
 import com.tkolymp.napect.ui.recipes.RecipeDetailScreen
 import com.tkolymp.napect.ui.recipes.RecipeListScreen
 import com.tkolymp.napect.ui.recipes.RecipeViewModel
+import com.tkolymp.napect.ui.recipes.TagsRow
 import com.tkolymp.napect.ui.recipes.UrlImportState
 import com.tkolymp.napect.ui.recipes.UrlImportViewModel
 import timber.log.Timber
@@ -218,7 +219,6 @@ fun NapectApp(
         }) { innerPadding ->
             val searchQuery by vm.searchQuery.collectAsState()
             val filteredItems: List<RecipeListItem> by vm.filteredRecipeListItems.collectAsState()
-            val searchSuggestions by vm.searchListItems.collectAsState()
 
             // If the app was opened via share, fetch/import the shared content and navigate to add screen
             LaunchedEffect(initialSharedUrl, initialSharedImageUri) {
@@ -253,7 +253,6 @@ fun NapectApp(
                         vm = vm,
                         searchQuery = searchQuery,
                         filteredItems = filteredItems,
-                        searchSuggestions = searchSuggestions,
                         onNavigateToRecipe = { id -> navController.navigate("recipe/$id") },
                     )
                 }
@@ -265,7 +264,6 @@ fun NapectApp(
                         vm = vm,
                         searchQuery = searchQuery,
                         filteredItems = filteredItems,
-                        searchSuggestions = searchSuggestions,
                         onNavigateToRecipe = { id -> navController.navigate("recipe/$id") },
                     )
                 }
@@ -603,7 +601,7 @@ private fun RecipeSearchBar(
     onSuggestionClick: (Long, String) -> Unit,
 ) {
     val searchActive = rememberSaveable { mutableStateOf(false) }
-    var showBar by rememberSaveable { mutableStateOf(true) }
+    var showBar by remember { mutableStateOf(true) }
     var localQuery by remember { mutableStateOf(searchQuery) }
 
     LaunchedEffect(listState) {
@@ -679,15 +677,16 @@ private fun HomeTab(
     vm: com.tkolymp.napect.ui.recipes.RecipeViewModel,
     searchQuery: String,
     filteredItems: List<RecipeListItem>,
-    searchSuggestions: List<RecipeListItem>,
     onNavigateToRecipe: (Long) -> Unit,
 ) {
     val allTags by vm.allTags.collectAsState()
     val currentTagId by vm.selectedTagId.collectAsState()
     val errorState by vm.error.collectAsState()
     val listState = rememberLazyListState()
-    val usedTags = allTags.filter { it.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || it.group == com.tkolymp.napect.domain.model.TagGroup.OTHER }
-    val suggestions = if (searchQuery.isBlank()) filteredItems.take(6) else searchSuggestions
+    val usedTags = remember(allTags) {
+        allTags.filter { it.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || it.group == com.tkolymp.napect.domain.model.TagGroup.OTHER }
+    }
+    val suggestions = filteredItems.take(6)
 
     Column(modifier = Modifier.fillMaxSize()) {
         if (!errorState.isNullOrBlank()) {
@@ -706,14 +705,16 @@ private fun HomeTab(
             onClearQuery = { vm.setSearchQuery("") },
             onSuggestionClick = { id, title -> vm.setSearchQuery(title); onNavigateToRecipe(id) },
         )
+        TagsRow(
+            availableTags = usedTags,
+            selectedTagId = currentTagId,
+            onTagSelected = { vm.setSelectedTagId(it) },
+        )
         PagedRecipeListScreen(
             pagedRecipes = vm.pagedRecipes,
             modifier = Modifier.weight(1f),
             onItemClick = onNavigateToRecipe,
             contentPadding = PaddingValues(0.dp),
-            availableTags = usedTags,
-            selectedTagId = currentTagId,
-            onTagSelected = { vm.setSelectedTagId(it) },
             onDelete = { id -> vm.deleteRecipe(id) },
             lazyListState = listState,
         )
@@ -726,39 +727,38 @@ private fun FavoritesTab(
     vm: com.tkolymp.napect.ui.recipes.RecipeViewModel,
     searchQuery: String,
     filteredItems: List<RecipeListItem>,
-    searchSuggestions: List<RecipeListItem>,
     onNavigateToRecipe: (Long) -> Unit,
 ) {
     val allTags by vm.allTags.collectAsState()
     val currentTagId by vm.selectedTagId.collectAsState()
     val listState = rememberLazyListState()
     val favItems = remember(filteredItems) { filteredItems.filter { it.isFavorite } }
-    val favSuggestions = remember(searchSuggestions) { searchSuggestions.filter { it.isFavorite } }
     val usedTags = remember(allTags, favItems) {
         allTags.filter { tg ->
             (tg.group == com.tkolymp.napect.domain.model.TagGroup.CATEGORY || tg.group == com.tkolymp.napect.domain.model.TagGroup.OTHER) &&
                 favItems.any { r -> r.tags.any { t -> t.id == tg.id } }
         }
     }
-    val suggestions = if (searchQuery.isBlank()) favItems.take(6) else favSuggestions
 
     Column(modifier = Modifier.fillMaxSize()) {
         RecipeSearchBar(
             searchQuery = searchQuery,
-            suggestions = suggestions,
+            suggestions = favItems.take(6),
             listState = listState,
             onQueryChange = { vm.setSearchQuery(it) },
             onClearQuery = { vm.setSearchQuery("") },
             onSuggestionClick = { id, title -> vm.setSearchQuery(title); onNavigateToRecipe(id) },
+        )
+        TagsRow(
+            availableTags = usedTags,
+            selectedTagId = currentTagId,
+            onTagSelected = { vm.setSelectedTagId(it) },
         )
         RecipeListScreen(
             recipes = favItems,
             modifier = Modifier.weight(1f),
             onItemClick = onNavigateToRecipe,
             contentPadding = PaddingValues(0.dp),
-            availableTags = usedTags,
-            selectedTagId = currentTagId,
-            onTagSelected = { vm.setSelectedTagId(it) },
             onDelete = { id -> vm.deleteRecipe(id) },
             lazyListState = listState,
         )

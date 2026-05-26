@@ -27,6 +27,7 @@ data class ImportedRecipeData(
     val proteinsG: Double? = null,
     val nutriScore: String? = null,
     val timeMinutes: Int? = null,
+    val imageUrl: String? = null,
 ) {
     /** Flat list of all ingredients across every group (backward-compat helper). */
     val ingredients: List<String> get() = ingredientGroups.flatMap { it.ingredients }

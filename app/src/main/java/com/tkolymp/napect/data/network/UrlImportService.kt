@@ -237,6 +237,7 @@ open class UrlImportService(private val client: OkHttpClient = OkHttpClient()) {
                         fatG = fat,
                         carbsG = carbs,
                         proteinsG = proteins,
+                        imageUrl = extractImageUrl(root),
                     )
                 }
 
@@ -253,6 +254,39 @@ open class UrlImportService(private val client: OkHttpClient = OkHttpClient()) {
             // ignore
         }
         return null
+    }
+
+    private fun extractImageUrl(recipeNode: JSONObject): String? {
+        val raw = recipeNode.opt("image") ?: return null
+        return when {
+            raw is String && raw.startsWith("http") -> raw
+            raw is JSONObject -> raw.optString("url").ifBlank { null }?.takeIf { it.startsWith("http") }
+            raw is JSONArray && raw.length() > 0 -> {
+                val first = raw.get(0)
+                when {
+                    first is String && first.startsWith("http") -> first
+                    first is JSONObject -> first.optString("url").ifBlank { null }?.takeIf { it.startsWith("http") }
+                    else -> null
+                }
+            }
+            else -> null
+        }
+    }
+
+    fun downloadImageBytes(url: String): ByteArray? {
+        return try {
+            val req = Request.Builder().url(url).get()
+                .header("User-Agent", "Napect/1.0 (Android; Recipe Manager)")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val ct = resp.header("Content-Type") ?: ""
+                if (!ct.startsWith("image/")) return null
+                resp.body?.bytes()
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 
     private fun parseNutritionNumber(s: String): Double? =

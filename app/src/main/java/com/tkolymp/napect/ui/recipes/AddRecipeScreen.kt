@@ -293,6 +293,8 @@ fun AddRecipeScreen(
                     if (data.proteinsG != null && proteinsG.isBlank()) proteinsG = formatNutritionValue(data.proteinsG)
                     if (data.nutriScore != null && nutriScore == null) nutriScore = data.nutriScore
                     if (data.timeMinutes != null && timeMinutes.isBlank()) timeMinutes = data.timeMinutes.toString()
+                    val importedBytes = (currentImportState as UrlImportState.Success).imageBytes
+                    if (importedBytes != null && photoBytes == null) photoBytes = importedBytes
                     try {
                         val preview = buildPreviewRecipe(init, title = data.title, summary = data.description, ingredientGroups = ingredientGroups, steps = steps, sourceUrl = data.sourceUrl, servingsBase = servingsBase)
                         onSuggest(preview)
@@ -376,7 +378,8 @@ fun AddRecipeScreen(
                 val stepLines = mutableListOf<String>()
                 for (ln in lines.drop(1)) {
                     val lower = ln.lowercase()
-                    val looksLikeIngredient = lower.matches(Regex("^[0-9⅛⅜¼½¾⅓⅔].*")) || lower.contains("tsp") || lower.contains("tbsp") || lower.contains("cup") || lower.contains("g") || lower.contains("kg") || lower.contains("ml") || lower.contains("l")
+                    val unitPattern = Regex("\\b(g|kg|ml|dl|l|tsp|tbsp|cup|oz|lb|ks|lžíce|lžička|šálek)\\b")
+                    val looksLikeIngredient = lower.matches(Regex("^[0-9⅛⅜¼½¾⅓⅔].*")) || unitPattern.containsMatchIn(lower)
                     if (looksLikeIngredient) ingLines.add(ln) else stepLines.add(ln)
                 }
                 if (ingLines.isNotEmpty()) {
@@ -446,52 +449,11 @@ fun AddRecipeScreen(
         Text(stringResource(R.string.section_ingredients), style = MaterialTheme.typography.titleMedium)
 
         ingredientGroups.forEachIndexed { groupIndex, group ->
-            // Named sub-section header (only for groups added beyond the default)
-            if (groupIndex > 0) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
-                ) {
-                    OutlinedTextField(
-                        value = group.name.value,
-                        onValueChange = { group.name.value = it },
-                        label = { Text(stringResource(R.string.section_name_hint)) },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = { ingredientGroups.removeAt(groupIndex) }) {
-                        Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(R.string.remove_section))
-                    }
-                }
-            }
-
-            // Ingredient rows within this section
-            group.ingredients.forEachIndexed { ingIndex, ing ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                ) {
-                    OutlinedTextField(value = ing.amount.value, onValueChange = { ing.amount.value = it }, label = { Text("0") }, singleLine = true, modifier = Modifier.width(80.dp))
-                    OutlinedTextField(value = ing.unit.value, onValueChange = { ing.unit.value = it }, label = { Text("g") }, singleLine = true, modifier = Modifier.width(72.dp))
-                    OutlinedTextField(value = ing.name.value, onValueChange = { ing.name.value = it }, label = { Text(stringResource(R.string.ingredient_name_hint)) }, singleLine = true, modifier = Modifier.weight(1f))
-                    IconButton(
-                        onClick = {
-                            if (group.ingredients.size > 1) group.ingredients.removeAt(ingIndex)
-                            else group.ingredients[ingIndex] = IngredientInputState()
-                        },
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(R.string.remove_ingredient))
-                    }
-                }
-            }
-
-            TextButton(onClick = { group.ingredients.add(IngredientInputState()) }, modifier = Modifier.padding(top = 4.dp)) {
-                Icon(imageVector = Icons.Filled.Add, contentDescription = stringResource(R.string.add), modifier = Modifier.size(16.dp))
-                 Text(stringResource(R.string.add_ingredient))
-            }
+            IngredientSectionEditor(
+                groupIndex = groupIndex,
+                group = group,
+                onRemoveGroup = { ingredientGroups.removeAt(groupIndex) },
+            )
         }
 
         // Add section button
@@ -503,118 +465,31 @@ fun AddRecipeScreen(
         // ── Tags ─────────────────────────────────────────────────────────────
 
         Spacer(modifier = Modifier.size(12.dp))
-        Text(stringResource(R.string.section_tags), fontWeight = FontWeight.Bold)
-
-        val grouped = availableTags.groupBy { it.group }
-        val availableNamesLower = availableTags.map { it.name.lowercase() }.toSet()
-        val extraSuggested = suggestedTagsList.filter { it.name.lowercase() !in availableNamesLower }
-
-        grouped.forEach { (group, tags) ->
-            Text(group.displayName, modifier = Modifier.padding(top = 8.dp))
-            FlowRow(modifier = Modifier.fillMaxWidth()) {
-                for (t in tags) {
-                    val checked = if (userTouchedTags.value) selectedTagIds.contains(t.id)
-                    else (selectedTagIds.contains(t.id) || suggestedIdsLocal.contains(t.id) || suggestedNamesLocal.contains(t.name))
-                    val onChipClick = {
-                        if (selectedTagIds.contains(t.id)) selectedTagIds.remove(t.id) else selectedTagIds.add(t.id)
-                        userTouchedTags.value = true
-                    }
-                    if (t.isAiGenerated) {
-                        FilterChip(selected = checked, onClick = onChipClick, label = { Text(t.name) }, leadingIcon = { Icon(Icons.Filled.AutoAwesome, contentDescription = "AI") }, modifier = Modifier.padding(end = 8.dp))
-                    } else {
-                        FilterChip(selected = checked, onClick = onChipClick, label = { Text(t.name) }, modifier = Modifier.padding(end = 8.dp))
-                    }
-                }
-            }
-        }
-
-        if (extraSuggested.isNotEmpty()) {
-            Text(stringResource(R.string.section_suggested), modifier = Modifier.padding(top = 8.dp))
-            FlowRow(modifier = Modifier.fillMaxWidth()) {
-                for (st in extraSuggested) {
-                    val checked = if (userTouchedTags.value) selectedTagIds.contains(st.id) else true
-                    val onChipClick = {
-                        if (selectedTagIds.contains(st.id)) selectedTagIds.remove(st.id) else selectedTagIds.add(st.id)
-                        userTouchedTags.value = true
-                    }
-                    FilterChip(selected = checked, onClick = onChipClick, label = { Text(st.name) }, leadingIcon = { Icon(Icons.Filled.AutoAwesome, contentDescription = "AI") }, modifier = Modifier.padding(end = 8.dp))
-                }
-            }
-        }
+        TagSection(
+            availableTags = availableTags,
+            selectedTagIds = selectedTagIds,
+            userTouchedTags = userTouchedTags,
+            suggestedTagsList = suggestedTagsList,
+            suggestedIdsLocal = suggestedIdsLocal,
+            suggestedNamesLocal = suggestedNamesLocal,
+        )
 
         // ── Steps ────────────────────────────────────────────────────────────
 
         Spacer(modifier = Modifier.size(12.dp))
-        Text(stringResource(R.string.section_steps))
-        Column(modifier = Modifier.fillMaxWidth()) {
-            steps.forEachIndexed { index, step ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                    OutlinedTextField(value = step, onValueChange = { steps[index] = it }, label = { Text("Krok ${index + 1}") }, modifier = Modifier.weight(1f))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(onClick = { if (steps.size > 1) steps.removeAt(index) else steps[index] = "" }, modifier = Modifier.size(40.dp)) {
-                        Icon(imageVector = Icons.Filled.Delete, contentDescription = "Odebrat krok")
-                    }
-                }
-            }
-        }
-        Button(onClick = { steps.add("") }, modifier = Modifier.padding(top = 8.dp)) { Text(stringResource(R.string.add_step)) }
+        StepsSection(steps = steps)
 
         // ── Nutritional values ───────────────────────────────────────────────
 
         Spacer(modifier = Modifier.size(12.dp))
-        Text(stringResource(R.string.section_nutrition), style = MaterialTheme.typography.titleMedium)
-        Text(
-            stringResource(R.string.nutrition_per_serving_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        NutritionSection(
+            caloriesKcal = caloriesKcal, onCaloriesChange = { caloriesKcal = it },
+            fatG = fatG, onFatChange = { fatG = it },
+            carbsG = carbsG, onCarbsChange = { carbsG = it },
+            proteinsG = proteinsG, onProteinsChange = { proteinsG = it },
+            nutriScore = nutriScore, onNutriscoreChange = { nutriScore = it },
+            servingsBase = servingsBase,
         )
-        Spacer(modifier = Modifier.size(4.dp))
-
-        NutritionField(
-            value = caloriesKcal,
-            onValueChange = { caloriesKcal = it },
-            label = stringResource(R.string.nutrition_calories),
-            unit = stringResource(R.string.nutrition_unit_kcal),
-            servingsBase = servingsBase
-        )
-        NutritionField(
-            value = fatG,
-            onValueChange = { fatG = it },
-            label = stringResource(R.string.nutrition_fat),
-            unit = stringResource(R.string.nutrition_unit_g),
-            servingsBase = servingsBase
-        )
-        NutritionField(
-            value = carbsG,
-            onValueChange = { carbsG = it },
-            label = stringResource(R.string.nutrition_carbs),
-            unit = stringResource(R.string.nutrition_unit_g),
-            servingsBase = servingsBase
-        )
-        NutritionField(
-            value = proteinsG,
-            onValueChange = { proteinsG = it },
-            label = stringResource(R.string.nutrition_proteins),
-            unit = stringResource(R.string.nutrition_unit_g),
-            servingsBase = servingsBase
-        )
-
-        // Nutri-Score chip picker
-        Text(
-            stringResource(R.string.nutrition_nutriscore),
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(top = 8.dp)
-        )
-        FlowRow(modifier = Modifier.fillMaxWidth()) {
-            listOf("A", "B", "C", "D", "E").forEach { grade ->
-                FilterChip(
-                    selected = nutriScore == grade,
-                    onClick = { nutriScore = if (nutriScore == grade) null else grade },
-                    label = { Text(grade) },
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-            }
-        }
 
         // ── Save / Cancel ────────────────────────────────────────────────────
 
@@ -665,6 +540,151 @@ fun AddRecipeScreen(
     }
 
 }
+}
+
+// ─── Section composables ──────────────────────────────────────────────────────
+
+@Composable
+private fun IngredientSectionEditor(
+    groupIndex: Int,
+    group: IngredientGroupState,
+    onRemoveGroup: () -> Unit,
+) {
+    if (groupIndex > 0) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+        ) {
+            OutlinedTextField(
+                value = group.name.value,
+                onValueChange = { group.name.value = it },
+                label = { Text(stringResource(R.string.section_name_hint)) },
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onRemoveGroup) {
+                Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(R.string.remove_section))
+            }
+        }
+    }
+    group.ingredients.forEachIndexed { ingIndex, ing ->
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+        ) {
+            OutlinedTextField(value = ing.amount.value, onValueChange = { ing.amount.value = it }, label = { Text("0") }, singleLine = true, modifier = Modifier.width(80.dp))
+            OutlinedTextField(value = ing.unit.value, onValueChange = { ing.unit.value = it }, label = { Text("g") }, singleLine = true, modifier = Modifier.width(72.dp))
+            OutlinedTextField(value = ing.name.value, onValueChange = { ing.name.value = it }, label = { Text(stringResource(R.string.ingredient_name_hint)) }, singleLine = true, modifier = Modifier.weight(1f))
+            IconButton(
+                onClick = {
+                    if (group.ingredients.size > 1) group.ingredients.removeAt(ingIndex)
+                    else group.ingredients[ingIndex] = IngredientInputState()
+                },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(R.string.remove_ingredient))
+            }
+        }
+    }
+    TextButton(onClick = { group.ingredients.add(IngredientInputState()) }, modifier = Modifier.padding(top = 4.dp)) {
+        Icon(imageVector = Icons.Filled.Add, contentDescription = stringResource(R.string.add), modifier = Modifier.size(16.dp))
+        Text(stringResource(R.string.add_ingredient))
+    }
+}
+
+@Composable
+private fun TagSection(
+    availableTags: List<Tag>,
+    selectedTagIds: SnapshotStateList<Long>,
+    userTouchedTags: MutableState<Boolean>,
+    suggestedTagsList: List<Tag>,
+    suggestedIdsLocal: Set<Long>,
+    suggestedNamesLocal: Set<String>,
+) {
+    val grouped = availableTags.groupBy { it.group }
+    val availableNamesLower = availableTags.map { it.name.lowercase() }.toSet()
+    val extraSuggested = suggestedTagsList.filter { it.name.lowercase() !in availableNamesLower }
+
+    Text(stringResource(R.string.section_tags), fontWeight = FontWeight.Bold)
+    grouped.forEach { (group, tags) ->
+        Text(group.displayName, modifier = Modifier.padding(top = 8.dp))
+        FlowRow(modifier = Modifier.fillMaxWidth()) {
+            for (t in tags) {
+                val checked = if (userTouchedTags.value) selectedTagIds.contains(t.id)
+                else (selectedTagIds.contains(t.id) || suggestedIdsLocal.contains(t.id) || suggestedNamesLocal.contains(t.name))
+                val onChipClick = {
+                    if (selectedTagIds.contains(t.id)) selectedTagIds.remove(t.id) else selectedTagIds.add(t.id)
+                    userTouchedTags.value = true
+                }
+                if (t.isAiGenerated) {
+                    FilterChip(selected = checked, onClick = onChipClick, label = { Text(t.name) }, leadingIcon = { Icon(Icons.Filled.AutoAwesome, contentDescription = "AI") }, modifier = Modifier.padding(end = 8.dp))
+                } else {
+                    FilterChip(selected = checked, onClick = onChipClick, label = { Text(t.name) }, modifier = Modifier.padding(end = 8.dp))
+                }
+            }
+        }
+    }
+    if (extraSuggested.isNotEmpty()) {
+        Text(stringResource(R.string.section_suggested), modifier = Modifier.padding(top = 8.dp))
+        FlowRow(modifier = Modifier.fillMaxWidth()) {
+            for (st in extraSuggested) {
+                val checked = if (userTouchedTags.value) selectedTagIds.contains(st.id) else true
+                val onChipClick = {
+                    if (selectedTagIds.contains(st.id)) selectedTagIds.remove(st.id) else selectedTagIds.add(st.id)
+                    userTouchedTags.value = true
+                }
+                FilterChip(selected = checked, onClick = onChipClick, label = { Text(st.name) }, leadingIcon = { Icon(Icons.Filled.AutoAwesome, contentDescription = "AI") }, modifier = Modifier.padding(end = 8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepsSection(steps: SnapshotStateList<String>) {
+    Text(stringResource(R.string.section_steps))
+    Column(modifier = Modifier.fillMaxWidth()) {
+        steps.forEachIndexed { index, step ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                OutlinedTextField(value = step, onValueChange = { steps[index] = it }, label = { Text(stringResource(R.string.step_number, index + 1)) }, modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(onClick = { if (steps.size > 1) steps.removeAt(index) else steps[index] = "" }, modifier = Modifier.size(40.dp)) {
+                    Icon(imageVector = Icons.Filled.Delete, contentDescription = stringResource(R.string.remove_step))
+                }
+            }
+        }
+    }
+    Button(onClick = { steps.add("") }, modifier = Modifier.padding(top = 8.dp)) { Text(stringResource(R.string.add_step)) }
+}
+
+@Composable
+private fun NutritionSection(
+    caloriesKcal: String, onCaloriesChange: (String) -> Unit,
+    fatG: String, onFatChange: (String) -> Unit,
+    carbsG: String, onCarbsChange: (String) -> Unit,
+    proteinsG: String, onProteinsChange: (String) -> Unit,
+    nutriScore: String?, onNutriscoreChange: (String?) -> Unit,
+    servingsBase: Int,
+) {
+    Text(stringResource(R.string.section_nutrition), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.nutrition_per_serving_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Spacer(modifier = Modifier.size(4.dp))
+    NutritionField(value = caloriesKcal, onValueChange = onCaloriesChange, label = stringResource(R.string.nutrition_calories), unit = stringResource(R.string.nutrition_unit_kcal), servingsBase = servingsBase)
+    NutritionField(value = fatG, onValueChange = onFatChange, label = stringResource(R.string.nutrition_fat), unit = stringResource(R.string.nutrition_unit_g), servingsBase = servingsBase)
+    NutritionField(value = carbsG, onValueChange = onCarbsChange, label = stringResource(R.string.nutrition_carbs), unit = stringResource(R.string.nutrition_unit_g), servingsBase = servingsBase)
+    NutritionField(value = proteinsG, onValueChange = onProteinsChange, label = stringResource(R.string.nutrition_proteins), unit = stringResource(R.string.nutrition_unit_g), servingsBase = servingsBase)
+    Text(stringResource(R.string.nutrition_nutriscore), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+    FlowRow(modifier = Modifier.fillMaxWidth()) {
+        listOf("A", "B", "C", "D", "E").forEach { grade ->
+            FilterChip(
+                selected = nutriScore == grade,
+                onClick = { onNutriscoreChange(if (nutriScore == grade) null else grade) },
+                label = { Text(grade) },
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
+    }
 }
 
 // ─── Ingredient import helper ─────────────────────────────────────────────────
