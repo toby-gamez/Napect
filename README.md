@@ -1,4 +1,4 @@
-Napect
+Napéct
 ======
 
 Napect is an Android app (Jetpack Compose) for storing and managing recipes locally. It uses Room for local storage, Hilt for dependency injection, Material3 Compose components for UI, and includes features such as recipe import from a URL or shared image, tagging, favorites and a cooking/make mode.
